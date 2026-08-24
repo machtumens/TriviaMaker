@@ -958,21 +958,27 @@ and 27/27a (for the `validateConfigPluginsT1` preflight call).
 
 ## Validate Contract
 
-Status: BLOCKED
+Status: CONDITIONAL
 Date: 24-08-26
 date: 2026-08-24
 generated-by: outer-pvl
+supersedes: 2026-08-24 (outer-pvl) — cycle-0 baseline contract (`Gate: BLOCKED`, F1 FAIL) is
+superseded by this independently re-derived cycle-2 verdict, run against the 24-08-26
+PVL-supplemented plan (F1/F2/F3/F5/F6/F7 fixes applied, see
+`gameshow-engine-pvl-iteration-001_REPORT_24-08-26.md`).
 
-Parallel strategy: sequential
-Rationale: Single non-phase-program plan, 1 dimension pass over 4 Layer-1 lenses + 9
-Layer-2 sub-phase sections. This VALIDATE pass was executed as a single agent session
-(Read + Bash tools only, no Agent/Task tool available in this invocation) rather than a
-true parallel fan-out — findings below were produced by direct source-code cross-checks
-against the plan's claims, sub-phase by sub-phase, in one pass. Signal count: 1/7 (single
-package, no schema/auth/API/billing surface, single plan, ≤5 blast-radius files touched
-that are *existing* files — the ~24 new files are creation targets, not concurrent-edit
-targets). A true fan-out (parallel subagents, 4 dimension + ~9 section agents) would be the
-textbook-correct strategy once the Agent tool is available for a re-run.
+Parallel strategy: sequential (single-session direct-evidence cross-checks)
+Rationale: The task instructions for this cycle stated the Agent/Task tool would be available
+for a true parallel fan-out. It was **not** present in this agent's actual tool grant (Read,
+Bash, Write only — no Agent/Task tool). This is disclosed explicitly rather than silently
+claiming a fan-out that didn't happen. What *was* delivered instead: full sequential coverage
+of all 4 Layer-1 dimensions and all 9 Layer-2 sub-phase sections in one session, each backed
+by direct `Read`/`grep` evidence against the real source files (not inference), plus a
+dedicated regression hunt across the 693→1380-line supplement diff and a hard probe of the
+F1/L2a undo algorithm (same rigor bar the task asked for). Signal count: 1/7 (single package,
+no schema/auth/API/billing surface, single plan). A textbook parallel fan-out remains the
+correct strategy once Agent/Task tool access is actually available to this validate role —
+flagging this again for the next cycle, as cycle-0's own contract did.
 
 ---
 
@@ -980,388 +986,346 @@ textbook-correct strategy once the Agent tool is available for a re-run.
 
 | Layer 1 dimensions | Status |
 |---|---|
-| Infra fit | CONCERN — see F5 (static file path-traversal), F6 (vite.config.ts outside tsconfig include) |
-| Test coverage | FAIL — see F1 (no test can exist for the missing one-click multi-intent undo guarantee; the plan's own TDD stubs don't cover it) |
-| Breaking changes | PASS — verified zero required edits to `src/config/types.ts` or `src/registry/index.ts` across all 9 sub-phases (see Breaking Changes section) |
-| Security surface | CONCERN — see F5 (path traversal), F8 (timing-unsafe token compare, accepted low-risk) |
+| Infra fit | **PASS** — F5 (path-traversal containment) and F6 (`vite.config.ts` outside tsconfig `include`) both verified closed. No new infra-level gaps found. |
+| Test coverage | **CONCERN** — F1's dedicated undo-batch tests (log.test.ts cases (d)/(e)) verified sound and close the original FAIL. Two new coverage gaps found this cycle: G2 (grid board content resolution has no test because it has no *implementation path* yet — see below) and G3 (intents.test.ts's per-intent-type assertion is ambiguous for two intent types). |
+| Breaking changes | **PASS** — independently re-verified zero required edits to `src/config/types.ts` or `src/registry/index.ts` across all 9 sub-phases, including confirming `StylePlugin<O>`'s `O` type param is a free generic (the exact mechanism G2's recommended fix depends on). |
+| Security surface | **PASS** — F5 (path traversal) closed with a sound fix, traced through both the raw and encoded-traversal test cases; F8 (non-constant-time token compare) remains an accepted, documented low-risk residual, reasoning re-confirmed sound against the stated local-LAN-only threat model. |
 
 | Layer 2 sections | Status |
 |---|---|
-| Sub-Phase 0 — validateConfigPlugins test coverage | CONCERN — see F2 (the function this sub-phase tests has a real coverage gap: non-`custom` style kinds aren't validated at all) |
+| Sub-Phase 0 — validateConfigPlugins test coverage | PASS |
 | Sub-Phase 1 — Phase machine | PASS |
-| Sub-Phase 2 — Intent application + event log + generic undo | **FAIL — see F1.** This is the plan's own named top risk, and the probe confirms the hazard is real, though not the exact shape the plan's Risks table anticipated. |
-| Sub-Phase 3 — grid style + flat scoring | CONCERN — see F3 (bundled demo preset exercises the documented streak gap and an unregistered style) |
-| Sub-Phase 4 — local transport + auth | CONCERN — see F5, F7, F8 |
-| Sub-Phase 5 — Stage view | PASS (mechanically sound; import-isolation check covers the documented invariant, with one shallow-check caveat noted as an open gap, not a blocker) |
-| Sub-Phase 6 — Host controller | PASS (contract-level; token URL handling correct) |
-| Sub-Phase 7 — Integration entrypoint | CONCERN — see F3 (default demo preset argument will crash mid-show) |
-| Sub-Phase 8 — Cross-cutting gates | CONCERN — see F6 |
+| Sub-Phase 2 — Intent application + event log + generic undo | **CONCERN** — F1 (FAIL) verified CLOSED (see below). Two new CONCERNs found in this same sub-phase: G1 (item 8 vs item 28 contradict each other on who calls `applyIntentsWithLog`) and G3 (`INTENT_TOUCHED_KEYS` claims `consumeQuestion`/`selectQuestion` touch `phase`, but neither intent carries a phase value and `applyIntent`'s own spec gives no instruction for it). |
+| Sub-Phase 3 — grid style + flat scoring | **CONCERN** — F3 verified CLOSED. New finding: G2 — `grid.buildBoard(round, options)` has no specified way to receive the actual question-bank content it needs to build real cells; the plan's own sentence describing this is self-contradictory. This is the most material finding of this cycle. |
+| Sub-Phase 4 — local transport + auth | PASS — F5 verified CLOSED (traversal fix sound); F7 verified effectively closed (very small residual noted, non-blocking); F8 remains an accepted note. |
+| Sub-Phase 5 — Stage view | PASS — re-checked, no new issues. |
+| Sub-Phase 6 — Host controller | PASS — re-checked, no new issues. |
+| Sub-Phase 7 — Integration entrypoint | **CONCERN** — F3's default-preset fix verified CLOSED here (items 27b/28). G1's sole-caller contradiction also lives here (item 28's dispatch wording). |
+| Sub-Phase 8 — Cross-cutting gates | PASS — F6 verified CLOSED (tsconfig `include` addition). |
 
-**Totals: 1 FAIL / 8 CONCERNs / 8 PASSes**
+**Totals: 0 FAIL / 4 CONCERN rows / 9 PASS rows** (13 total rows; F1's original FAIL row is now
+counted among the closed items below, not in this cycle's totals).
 
-**→ Net Gate: BLOCKED**
+**→ Net Gate: CONDITIONAL**
 
-One unresolved FAIL (F1) is sufficient to block per the standard rule (any FAIL → BLOCKED
-unless explicitly converted to CONDITIONAL by a user, and no user is present in this
-session to make that call). F1 is not a hypothetical edge case — it fires on the two most
-common host actions in the entire show (select a question; mark an answer correct or
-wrong), so it cannot be waved through as an acceptable residual.
-
----
-
-### F1 — [FAIL] Generic undo operates per-Intent, but a single host action can be multiple Intents — one-click-undo is not actually guaranteed
-
-**This was the specific hazard requested for deep probing (the generic undo diff). The
-verdict is FAIL, but not for the reason the plan's own Risks table anticipated.**
-
-**What the plan's Risks table worried about:** a *shallow diff on a nested structure*
-producing a wrong inverse patch (e.g. Set/array fields, or a nested team object inside
-`teams`).
-
-**What the probe found instead:** the snapshot mechanism itself is sound for a *single*
-intent. `applyIntentWithLog` snapshots the *entire* value under each touched top-level key
-(`state[key]`) before calling `applyIntent`, and `applyIntent` is specified to always build
-brand-new object/array/Set graphs rather than mutate in place (item 6: new `Set` for
-`consumed`, new array + new team object for `teams`). Because the snapshot captures the
-**whole** pre-image of the key (not a computed per-field delta), and because old references
-are never mutated once superseded, `event.undo = { ...snapshottedKeys }` is a faithful
-whole-key checkpoint — restoring it does *not* reintroduce a stale sibling, *provided* the
-immutable-update discipline in item 6 is followed exactly and `INTENT_TOUCHED_KEYS` is
-exhaustive for what each intent actually writes. On that specific, narrower question — is a
-Set/array/nested-object diff itself correct — the design is technically sound as specified.
-
-**The real, load-bearing bug is one level up: granularity mismatch between "Intent" (the
-unit `applyIntentWithLog`/`undo()` operate on) and "host action" (the unit the SPEC and this
-plan's own Goal 2 require undo to reverse in one click):**
-
-- `grid.onSelect(state, questionId)` (item 12) returns **two** intents:
-  `[{type:'selectQuestion', questionId}, {type:'setPhase', phase:'reading'}]`.
-- `session.ts`'s `resolveAnswer()` (Design Lock L6) "emits `awardPoints` +
-  `consumeQuestion` + `setPhase` intents generically for every style" — **three** intents
-  for a single "mark correct / mark wrong" host click.
-- `applyIntentWithLog(state, intent, seq, at)` (item 8) takes exactly **one** `Intent` and
-  produces exactly **one** `GameEvent`. There is no batching parameter.
-- `undo(state, depth)` (item 9) reverses **the single most recent un-reversed `GameEvent`**
-  by applying its own `.undo` patch and appending one synthetic reversal event.
-- `GameEvent` (`src/registry/index.ts:66-73`, confirmed by direct read) has fields
-  `seq, at, name, payload, undo?` — **no `actionId`/`groupId`/batch field exists anywhere
-  in the data model** to mark "these N events came from one host click and must be undone
-  together."
-
-**Consequence, concretely:** after a host selects a question (2 intents → 2 separate log
-entries), pressing "undo" once reverses only the `setPhase` half — `currentQuestionId`
-stays set to the selected question, requiring a **second** undo press to fully back out of
-the selection. After a host marks an answer correct (3 intents → 3 separate log entries:
-`awardPoints`, `consumeQuestion`, `setPhase`), a single undo press reverses only the *last*
-of the three (`setPhase`) — the score stays awarded and the question stays consumed. The
-host would need **three** separate undo presses, applied correctly and in order, with the
-UI accurately reflecting each intermediate (half-undone) state, to fully reverse one mark-
-correct click. This directly contradicts:
-
-- **PLAN Goal 2**: "Undo reverses the single most recent action in one host interaction,
-  with zero hand-written per-intent-type inverse logic."
-- **SPEC AC#6**: "The most recent scoring or phase-changing action can be reversed in a
-  single host interaction."
-- **Host controller item 25**: "Undo button always visible and reachable in exactly one
-  click/tap (SPEC AC#6 / live-event requirement)."
-- The live-event framing throughout the SPEC ("a misclick under pressure in front of an
-  audience is recoverable in one action, not several").
-
-**Why this is a FAIL, not a CONCERN:** it is not an edge case — it fires on the two most
-frequent host actions in the entire show (select-question, mark-correct/wrong), it is
-architectural (no amount of careful EXECUTE-time coding closes it without a data-model or
-dispatch-model change), and no test in the plan would catch it. `log.test.ts` item 10 only
-exercises a single, isolated `awardPoints` → `undo` round trip (one intent, not a multi-
-intent host action) — it would pass green while the real multi-intent case silently ships
-broken. `host-manual-round.test.ts` is scoped to prove AC#5 (zero-player playability, a full
-round loop), not AC#6 (undo), per the Test Plan / Verification Evidence tables — no test
-anywhere asserts "N host actions applied, N `undo()` calls fully reverse them one action
-per call."
-
-**What licenses the FAIL classification, stated precisely:** the mechanism as specified
-correctly implements per-Intent undo. It does not implement per-host-action undo. Since the
-plan's own Goal 2 and the SPEC's AC#6 are stated at the host-action granularity, and the
-implemented mechanism operates at the finer Intent granularity with no grouping construct
-between them, the gap is real and must be closed in this plan before EXECUTE, not
-discovered live.
-
-**Closing this requires a genuine design decision** (INNOVATE-adjacent, but small enough to
-resolve as a plan supplement rather than a full INNOVATE re-pass) — two viable directions,
-neither requiring a `src/registry/index.ts` or `src/config/types.ts` change:
-
-- **Option A — group by call site, not by data model.** Add an internal (non-exported,
-  `src/engine/` only) `applyIntents(state, intents: Intent[], seq0, at): { state, events:
-  GameEvent[] }` that calls `applyIntentWithLog` once per intent but merges their `.undo`
-  patches into the union of all touched keys and tags the events with a shared, added-in-
-  T1 (non-`GameEventName`) marker so `undo()` can detect "these consecutive log entries
-  belong to one host action" and reverse all of them in a single `undo()` call. Requires
-  extending `GameEvent`'s `payload`/a new field to carry a group marker — but `GameEvent`
-  is defined in `src/registry/index.ts` (line 66-73), so this needs either (a) confirming
-  `payload: Record<string, unknown>` is loose enough to carry `{ actionId }` without a type
-  change (it is — `payload` is already untyped `Record<string, unknown>`, so no interface
-  edit is needed, only a documented convention), or (b) adding a dedicated field, which
-  WOULD require a `registry/index.ts` edit (out of scope per this plan's own constraint).
-  **Prefer (a)**: thread `payload.actionId` (a per-host-action UUID or the seq of the first
-  event in the group) through every intent, generated once per `onCommand` dispatch in
-  `server.ts`, and have `undo()` collect and reverse every event sharing the most recent
-  action's `actionId` in one call. No contract change.
-- **Option B — collapse multi-intent host actions into a single intent at the source.**
-  Instead of `onSelect`/`resolveAnswer` returning multiple fine-grained intents, have
-  `session.ts` apply them via one `applyIntentWithLog`-equivalent call that snapshots the
-  UNION of all keys touched by the whole intent batch up front, applies all intents in
-  sequence, and logs exactly ONE `GameEvent` for the whole batch (with `name` chosen per
-  the existing L4 fallback rules using the *last* intent's mapped name, and `undo` covering
-  every key any intent in the batch touched). This keeps `GameEvent`/`Intent` untouched and
-  requires no new field — only a small addition to `log.ts`'s public surface
-  (`applyIntentsWithLog(state, intents: Intent[], seq, at)`Plural variant, or a
-  documented convention that `session.ts` is the ONLY caller of `applyIntentWithLog` and
-  it always batches). **This is the cleaner fix** — it keeps `undo()`'s existing single-
-  event semantics exactly as specified and only changes how `session.ts` groups its own
-  internal calls; no data-model change of any kind.
-
-Recommend **Option B** in the SUPPLEMENT REQUEST below — it requires zero changes to
-`GameEvent`/`Intent` and keeps `undo()` as specified, only adding a `applyIntentsWithLog`
-(or equivalently, having `session.ts` call a small internal helper that snapshots the
-union of touched keys across a whole `Intent[]` batch before applying any of them).
+Zero unresolved FAILs. Three new, real, file:line-verified CONCERNs (G1, G2, G3) were found by
+this cycle's deliberately broader coverage — none of them require touching
+`src/config/types.ts` or `src/registry/index.ts` to fix (the bar that made F1 a FAIL), so none
+of them individually justify BLOCKED. But G2 in particular is material enough (it blocks Goal 1
+— a real grid board cannot be built as specified) that this is not a clean PASS either. Per
+`orchestration.md`'s "first-pass CONDITIONAL is not terminal" rule, this routes to one more
+plan supplement (PVL cycle 3), not to EXECUTE.
 
 ---
 
-### F2 — [CONCERN] `validateConfigPlugins()` does not check built-in (non-`custom`) style kinds against the `style` registry
+### Cycle-1 Supplement Verification — F1 through F8
 
-Confirmed by direct read of `src/registry/index.ts:262-292`: the only style-related check is
-
-```
-if (round.style.kind === 'custom') {
-  check('style', round.style.plugin, `program.rounds[${i}].style.plugin`)
-}
-```
-
-`StyleConfig` (`src/config/types.ts:314-317`) is a closed discriminated union
-(`GridStyle | WheelStyle | ListStyle | TicTacStyle | HangmanStyle | TriviaStyle |
-CustomStyle`) where the built-in kinds (`grid`, `wheel`, `list`, `tictac`, `hangman`,
-`trivia`) are literal strings, not a `RegistryKey` field that gets validated. There is no
-code path in `validateConfigPlugins()` that checks whether `round.style.kind` (for a
-non-`custom` round) is actually registered under `'style'`. Since T1's `bootstrap.ts`
-registers only `'grid'` (item 27), a preset with a `wheel`/`list`/`tictac`/`hangman`/
-`trivia` round will pass preflight cleanly and then throw at runtime
-(`resolve('style', 'trivia')` → `Error('unknown style plugin "trivia"')`) whenever that
-round is reached mid-show. This directly undermines the exact promise the preflight
-mechanism exists for — SPEC AC#3: "a typo... caught in the green room, not on stage."
-
-**This is not hypothetical** — see F3: `presets/school-assembly.ts`, the plan's own bundled
-demo config, reproduces exactly this failure mode in round 3.
-
-**Recommended fix (small, in-scope, no `registry/index.ts` change):** extend
-`validateConfigPlugins()`'s round-loop check (in `bootstrap.ts` or a new thin wrapper the
-`server.ts` preflight calls, NOT by editing the exported function in `registry/index.ts`
-itself — or, if editing `validateConfigPlugins()` in `registry/index.ts` is acceptable
-since it's additive/backward-compatible, note that as a deviation from the "zero registry
-edits" claim and get explicit confirmation) to also check
-`check('style', round.style.kind, ...)` unconditionally, not only for `kind === 'custom'`.
-**Because this technically touches `src/registry/index.ts` (currently on the "do not
-modify" list), the supplement must either (a) implement this check in `bootstrap.ts` /
-`server.ts` as a T1-local wrapper around `validateConfigPlugins()` that adds the extra
-check without editing the exported function, or (b) get an explicit, recorded decision to
-make a small additive edit to the exported function.** Prefer (a) to honor the plan's own
-"do not modify" contract; flagging this precisely so the supplement doesn't accidentally
-violate Breaking Changes by editing the protected file.
+| Finding | Cycle-0 severity | This cycle's verdict | Evidence |
+|---|---|---|---|
+| **F1** — undo granularity | FAIL | **CLOSED, verified sound** | See full trace below — the batch-union-snapshot algorithm was stress-tested against the exact scenario requested (two intents touching the same key within one batch) and holds. |
+| F2 — built-in style kinds unchecked | CONCERN | **CLOSED** | `validateConfigPluginsT1()` (item 27) uses the exported `list('style')` function — mechanically buildable with zero `registry/index.ts` edits, confirmed by direct read of `list()` (`src/registry/index.ts:257-259`). One minor citation nit noted below (non-blocking). |
+| F3 — bundled demo preset breaks under T1 | CONCERN | **CLOSED** | Confirmed `presets/school-assembly.ts` round 2 (`streak.enabled:true`, line 104) and `final` round (`kind:'trivia'`, line 119) are exactly as cycle-0 described. Fix (new `presets/demo-t1.ts` as the zero-arg default + `flat.score()` warn-once) is complete and mechanically sound. |
+| F5 — static file path traversal | CONCERN | **CLOSED** | `path.resolve` + prefix-containment check (item 18) is a correct, standard pattern; traced both a raw `../` request and a `%2e%2e`-encoded variant through `decodeURIComponent` → `path.resolve` → containment check and confirmed both are caught. |
+| F6 — `vite.config.ts` outside tsconfig `include` | CONCERN (minor) | **CLOSED** | Confirmed current `tsconfig.json:13` is `["src/**/*","presets/**/*"]` (missing `vite.config.ts`); item 30 adds it. |
+| F7 — `startClock` resume-anchor formula unspecified | CONCERN (minor) | **Effectively closed** | Formula specified (item 6) is correct for the common case. One very small residual noted below (non-blocking — `questionSec: number \| null` per the schema, formula doesn't guard the `null` case, but no T1 preset or default sets it to `null`). |
+| F8 — non-constant-time token compare | Note, accepted | **Unchanged, still accepted** | Reasoning re-confirmed: 122-bit `crypto.randomUUID()` secret + local-LAN-only threat model. No new information changes this. |
 
 ---
 
-### F3 — [CONCERN] Bundled default preset is inconsistent with T1's own documented scope, and `server.ts` defaults to it
+### F1 deep-probe — the specific hazard requested this cycle
 
-Confirmed by direct read of `presets/school-assembly.ts` and `src/config/defaults.ts`:
+**Verdict: CLOSED. The L2a batch-union-snapshot algorithm is correct, including for the exact
+edge case requested — two intents in one batch touching the *same* key.**
 
-- Round 2 (`r2`, `style.kind: 'grid'` — in T1 scope) sets
-  `overrides.rules.scoring.streak.enabled: true, threshold: 2` (line 104). The preset never
-  overrides `rules.scoring.engine`, so round 2 resolves to the default `'flat'` engine
-  (`src/config/defaults.ts:70`). Per this plan's own Design Lock L5, `flat.ts` does **not**
-  implement streak even when enabled — an intentional, documented T1 gap. The consequence:
-  round 2 will silently under-score any team on a hot streak, with zero warning, zero
-  error, and no visible signal to the host that anything is wrong.
-- Round 3 (`final`, `style.kind: 'trivia'`) is not a T1-registered style at all (see F2) —
-  it will hard-crash if reached.
-- `server.ts` (item 28) reads the preset path from `process.argv[2]`, **defaulting to
-  `presets/school-assembly.ts`** when no argument is given. That means the plan's own
-  "getting started" path — `npm run show` with no arguments — is guaranteed to (a) silently
-  mis-score round 2 and (b) crash outright on round 3, for anyone who runs the bundled demo
-  past round 1.
+Traced the algorithm (item 8) against three questions:
 
-**Why this is a CONCERN and not folded into the FAIL:** narrowly read, PLAN Goal 1 and SPEC
-AC#11 only require "a complete `grid`-style round" / "one complete round" — round 1 alone
-satisfies both literally, and L5 already documents the streak omission as intentional. But
-the plan's own chosen default entrypoint argument actively exercises both gaps, which is a
-real and easily-hit rehearsal/live-event failure mode (a host clicking past round 1 is the
-overwhelmingly likely real-world path), and it directly contradicts the SPEC's own framing
-that on-stage crashes are "a defect, not an edge case."
+**1. Does the union-before-apply snapshot handle two same-batch intents touching the same
+key correctly?** Yes, and the reasoning generalizes further than the specific hypothetical
+asked for. Because the snapshot is taken **once**, from the state as it was *before any intent
+in the batch runs*, and undo simply restores the whole snapshotted value for each touched key,
+it does not matter how many intents in the batch wrote to that key, in what order, or what
+intermediate values existed — undo restores exactly the pre-batch value. Concretely: `teams`
+is touched only by `awardPoints` in T1's two real batches, but a hypothetical batch with *two*
+`awardPoints` intents against the same team (e.g. `+50` then `+30`) would still undo correctly
+in one call, because `event.undo.teams` is the whole original array captured before either
+delta applied — restoring it discards both deltas at once, not just the last one. This is a
+structural property of "checkpoint-then-replay-then-restore-checkpoint," not something that
+needs per-intent bookkeeping.
 
-**Resolution options (pick one in the supplement):**
-- **A.** Change `server.ts`'s default argument (or add a T1-scoped demo preset,
-  e.g. `presets/school-assembly-t1-demo.ts`) that only includes the `grid`-style rounds
-  with streak left off, so the zero-argument path actually completes end-to-end.
-- **B.** Strip the `streak.enabled: true` override from `school-assembly.ts` round 2 and
-  replace the `final` round's `trivia` style with a second `grid` round (or document that
-  `school-assembly.ts` is a T2+ fixture and is not expected to run under T1 — but then the
-  Sub-Phase 7 default argument should NOT point at it).
-- **C.** Have `flat.score()` throw or log a loud warning when it detects
-  `rules.scoring.streak.enabled === true` or `.comeback.enabled === true` (a "your config
-  asked for a scoring feature this engine build doesn't implement" guard) — closes the
-  *silent* half of the problem even if the crash-on-`trivia` half (F2) is fixed separately.
+There is also a **real instance** of two same-batch intents touching the same key in T1's own
+code, not just a hypothetical: `consumeQuestion` and `setPhase` both claim to touch `phase`
+(per `INTENT_TOUCHED_KEYS`, item 6) and both appear in `resolveAnswer`'s 3-intent batch. Traced
+through: union = `{teams, consumed, phase}`; snapshot taken once from pre-batch state; `phase`
+ends up set to whatever `setPhase` (which always runs *last* in every batch this plan defines)
+assigns; undo restores all three keys to their pre-batch values in one call. Confirmed correct
+— and this is exactly what test case (e) (item 10) asserts.
 
----
+**2. Is `session.ts` genuinely the only caller, and is that enforceable or merely asserted?**
+**Not enforceable as written, and the plan's own text is internally inconsistent about it.**
+See **G1** below — this is a real, separate finding, not folded into F1's re-close because the
+underlying undo mechanism itself is unaffected by *which file* calls it, only by whether the
+caller batches correctly. F1 stays closed; G1 is the sole-caller-discipline gap.
 
-### F4 — [PASS, confirmed] Breaking changes — zero required edits to `src/config/types.ts` or `src/registry/index.ts`
+**3. Does `undo()` still behave correctly given L3's append-only reversal-marker design?**
+Traced `undo()`'s scan logic (item 9) through two consecutive `undo()` calls: call 1 reverses
+event N, appends reversal event N+1 (tagged `payload.reversalOf = N`). Call 2's scan correctly
+skips N+1 (it has `payload.reversalOf` set, so the "not itself a reversal" filter excludes it)
+and correctly skips N (it now has a *later* event with `payload.reversalOf === N`, so the
+"not already reversed" filter excludes it too) — landing on event N-1, the next real host
+action back. This is the expected "keep pressing undo to go further back" behavior and is
+internally consistent. No bug found here.
 
-Verified directly, sub-phase by sub-phase:
-- `TransportHandle` is unmodified; the host token is threaded through
-  `TransportPlugin<O>.start(options: O)`'s already-generic `O` parameter (confirmed generic,
-  `src/registry/index.ts:178-190`) — no interface change needed for L7.
-- No new `GameEventName` member is added (Open Item 1 explicitly defers this to T2); the L4
-  fallback-mapping table works within the existing closed union (confirmed against
-  `src/config/types.ts:778-786` — none of `setTurn`, `stopClock`, `playSound`, `effect`,
-  `custom` have an exact match, all use documented fallbacks, consistent with the plan's
-  own framing).
-- `register`/`resolve`/`list`/`validateConfigPlugins` (the only registry exports touched)
-  are called, not edited, by `bootstrap.ts`.
-- **Exception carried forward from F2**: closing F2 properly may require a small additive
-  edit to `validateConfigPlugins()` in `registry/index.ts` unless the wrapper approach
-  (Option a) is used. This is noted so the supplement doesn't accidentally regress this
-  PASS finding.
+**Conclusion: F1 is closed. The fix is architecturally sound.** The two new findings below
+(G1, G2) are real but are not re-openings of F1 — they are new gaps this cycle's broader
+coverage surfaced.
 
 ---
 
-### F5 — [CONCERN] `local.ts`'s static file server has no specified path-traversal containment
+### G1 — [CONCERN] Plan text contradicts itself on who calls `applyIntentsWithLog`
 
-Item 18's "any other GET" route: "serve the matching file under `options.staticDir`
-(default `dist/`) via `node:fs.readFile`" does not mention normalizing or containing the
-resolved path within `staticDir`. This is a `node:http` server bound to the venue LAN
-(exactly the same threat surface the host-auth token was added to defend — INNOVATE's
-Medium-risk finding). A request such as `GET /../../../../etc/passwd` (or any encoded
-variant) against a naive `path.join(staticDir, req.url)` implementation could read arbitrary
-files off the host laptop if the resolved path isn't checked to stay inside `staticDir`.
-`local.test.ts` (item 19) does not include a path-traversal scenario in its four listed
-cases. **Recommended fix:** resolve the requested path with `path.resolve`, verify (via
-`path.relative` or a prefix check) it stays within the resolved `staticDir`, and respond
-`403`/`404` otherwise — plus add a fifth `local.test.ts` case asserting a traversal request
-is rejected.
+**Item 8 (Sub-Phase 2)** states, twice, that `session.ts` is the sole caller: *"`session.ts` is
+the ONLY caller of `applyIntentsWithLog`... never a per-intent loop of individual log calls."*
+This claim is what the plan leans on to guarantee F1 stays fixed as the codebase grows.
 
----
+**Item 28 (Sub-Phase 7, `server.ts`)** describes something different: *"wires `onCommand` to
+dispatch each host command's resulting `Intent[]` (from `onSelect`, `resolveAnswer`, or a
+single-intent pause/resume call) as ONE array to ONE `applyIntentsWithLog` call."* Read
+literally, this has `server.ts` itself calling `applyIntentsWithLog` — not routing through a
+`session.ts` wrapper. The Public Contracts section (line ~220) reinforces this reading:
+*"`applyIntentsWithLog`... used by `server.ts` and (indirectly, via HTTP) the host
+controller"* — explicitly naming `server.ts` as a direct user of the function.
 
-### F6 — [CONCERN, minor] `vite.config.ts` is outside tsconfig's `include`, and neither gate type-checks it
+**Why this matters, precisely:** it doesn't currently break undo correctness — whichever file
+calls `applyIntentsWithLog`, as long as it always passes the *whole* host-action `Intent[]` in
+one call (which item 28's own wording says it does), F1's fix still holds. The problem is that
+the plan states a "sole caller = `session.ts`" invariant as the thing that PREVENTS a future
+regression, and then a different part of the same plan (also written/touched by this same
+supplement pass) directly contradicts it. If an EXECUTE agent follows item 28 literally
+(`server.ts` importing `log.ts` directly), the "session.ts is the only caller" sentence in item
+8 becomes false the moment T1 ships — which then makes it an unreliable guardrail for whoever
+adds the *next* call site later (T2+), since the actual discipline that matters ("always batch,
+never loop") isn't stated as the enforced invariant anywhere; the (now-false) "one file only"
+framing is.
 
-`tsconfig.json`'s `include: ["src/**/*", "presets/**/*"]` (confirmed by direct read) does
-not cover the new root-level `vite.config.ts` (Sub-Phase 8, item 30). `npm run typecheck`
-(`tsc --noEmit`) therefore never type-checks it. `npm run build` (`vite build`, item 34's
-gate sequence) uses Vite's esbuild-based transpilation, which strips types without checking
-them — so a type error in `vite.config.ts` would not be caught by either of the two gates
-in the plan's own "must succeed" sequence. The plan's claim "tsconfig.json needs no
-change... already covers every new directory" (lines 148-149) is true for the new `src/**`
-subdirectories but overlooks this one root-level file. **Recommended fix:** add
-`"vite.config.ts"` to tsconfig's `include` array (one-line, additive, no behavior change to
-anything already covered).
+**Recommended fix (pick one, either closes it):**
+- **(a)** Have `session.ts` export a thin wrapper (e.g. `session.dispatchHostAction(state, intents, seq, at)`) that internally calls `applyIntentsWithLog`, and have `server.ts`'s `onCommand` call *that* instead of the log module directly — this makes the "session.ts is the sole caller" sentence literally true again.
+- **(b)** Keep `server.ts` as a legitimate second call site, but rewrite item 8's invariant to state the thing that actually matters: *"every call site passes the whole host action's `Intent[]` to ONE `applyIntentsWithLog` call — never a per-intent loop — regardless of which file the call site lives in."* Drop the "sole caller = session.ts" framing.
 
----
-
-### F7 — [CONCERN, minor] `startClock`'s `ms` semantics and resume-anchor derivation are underspecified
-
-Item 25's resume flow: the host computes `remainingMs = questionSec*1000 -
-(Date.now() - clockStartedAt)` client-side, then `POST { type:'startClock', payload:{ ms:
-remainingMs } }`. Item 6's `applyIntent` description doesn't state how `clockStartedAt` is
-derived from an incoming `ms` value that represents *remaining* time rather than an
-absolute anchor (naively setting `clockStartedAt = Date.now()` would restart the full
-`questionSec` countdown instead of resuming from where it was paused, losing already-
-elapsed time). **Recommended fix (execute-agent instruction, not a design change):**
-`applyIntent` for `startClock` should compute
-`clockStartedAt = Date.now() - (questionSec*1000 - intent.ms)` so the client-rendered
-countdown (D5's formula, `questionSec*1000 - (now - clockStartedAt)`) correctly resumes
-from `ms` remaining rather than restarting.
+Either is a small, mechanical plan-text fix. No source-file behavior needs to differ between
+the two options except where the wrapper function lives.
 
 ---
 
-### F8 — [Note, accepted low-risk] Host token comparison is not constant-time
+### G2 — [CONCERN, material] `grid.buildBoard` has no specified path to real question content
 
-`token !== options.hostToken` (item 18) is a plain string inequality, not a constant-time
-comparison. Given the plan's own accepted local-LAN-only threat model (Risks table: "local-
-LAN-only threat model, consistent with SPEC's out-of-scope line on real auth/accounts") and
-a high-entropy `crypto.randomUUID()` secret (122 bits of randomness), a timing side-channel
-attack recovering the token character-by-character over a live LAN during a show is not a
-credible risk for this class of application. **Not blocking.** Noted for completeness per
-the requested security review; no action required unless the threat model changes (e.g. if
-this transport is ever exposed beyond the venue LAN, which the SPEC explicitly rules out for
-T1).
+**This is the most significant new finding this cycle.**
+
+Item 12 (Sub-Phase 3) specifies `grid.ts`'s `buildBoard(round, options)`: *"one `BoardModel`
+cell per (row, col) where row indexes `options.pointLadder` and col indexes the round's
+questions-per-category (derive from `round.categoryIds` + **the resolved question bank passed
+in via `options`** — options is **the resolved `GridStyle` config object itself**, per the
+registry's generic `O` type param)."*
+
+That single sentence is self-contradictory, verified directly against both interfaces:
+
+- `StylePlugin<O>.buildBoard(round: Round, options: O): BoardModel` (`src/registry/index.ts:97`) — receives only `round` and `options`. No `config`, no `content.banks`, nothing else.
+- `GridStyle` (`src/config/types.ts:318-331`) — `kind, columns, rows, pointLadder, selection, showCategoryHeaders, consumedStyle, dramaticCategoryReveal`. **No field holds a question bank, category list, or question array.**
+- `Round` (`src/config/types.ts:633-662`) — has `bankId?: string` and `categoryIds?: string[]`, which are **references** (IDs) into `GameShowConfig.content.banks: QuestionBank[]`, not the actual `Category`/`Question` objects.
+
+So the claim "the resolved question bank [is] passed in via `options`" is false given `options`
+is *also* claimed to be exactly `GridStyle` — `GridStyle` has nowhere to put it. Searched the
+entire plan for any other function that resolves `round.bankId`/`round.categoryIds` against
+`config.content.banks` before calling `buildBoard` — there is none. No `session.ts` or
+`server.ts` step is described as hydrating a round's content before the style plugin needs it.
+
+**Concretely, an EXECUTE agent following item 12 literally has no path to build a `BoardModel`
+with real `questionId`s, `label`s, or points** — the two inputs it's given (`round`, a mostly
+ID-shaped object, and `options`, a `GridStyle` with no content fields) don't contain the
+content. This blocks Goal 1 ("a host can... run a complete `grid`-style round end-to-end") at
+its most basic level: there is no board to render without this.
+
+**Why this is CONCERN and not FAIL:** unlike F1, this does **not** require touching
+`src/registry/index.ts` or `src/config/types.ts` to fix. `StylePlugin<O>`'s `O` is a free,
+unconstrained generic type parameter (confirmed: nothing in the interface or in `register`/
+`resolve`'s signatures pins `O` to any specific shape) — T1 is free to define its *own* richer
+options shape for the `'grid'` registration (e.g. `GridStyle` plus the round's resolved
+`Category[]`/`Question[]`), assembled by whichever caller has access to the full
+`GameShowConfig` (almost certainly `session.ts`, since it already holds `state.config` per
+L10's `structuredClone`). This is buildable within the plan's own stated constraints — it's a
+missing design decision, not a missing capability.
+
+**Recommended fix for the supplement:** add an explicit step (Sub-Phase 2 or 3) that:
+1. Defines a T1-local `GridBuildOptions` type (or similar), living in `src/styles/grid.ts` or
+   a small shared helper, shaped as `GridStyle & { categories: Category[] }` (or equivalent) —
+   no edit to `types.ts` required, since `Category`/`Question` are already exported types there.
+2. Specifies exactly where the resolution from `round.bankId`/`round.categoryIds` +
+   `state.config.content.banks` into that shape happens (most naturally: a small pure function
+   in `session.ts`, called once when a round starts / board is built, e.g.
+   `resolveRoundContent(config, round)`).
+3. Updates item 12's text to remove the self-contradictory "options is the resolved GridStyle
+   config object itself" clause and replace it with the actual, richer shape.
+4. Updates item 13's test (currently only asserting cell *count*) to also assert at least one
+   cell's `questionId`/`label` matches real fixture content, so this integration point is
+   actually exercised by an automated gate, not just cell-count arithmetic.
 
 ---
 
-### Test Coverage Plan (C-4 5-column form; additive to the plan's own already-thorough Test Plan / Verification Evidence tables, which are reused here rather than duplicated)
+### G3 — [CONCERN, minor] `INTENT_TOUCHED_KEYS` claims two intents touch `phase` with no way to derive it
+
+`consumeQuestion` (`{type:'consumeQuestion', questionId}`) and `selectQuestion`
+(`{type:'selectQuestion', questionId}`) are both listed in item 6's `INTENT_TOUCHED_KEYS` table
+as touching `phase`, in addition to their own obvious key (`consumed` / `currentQuestionId`
+respectively). Neither `Intent` variant carries any phase-related field
+(`src/registry/index.ts:76-88`, confirmed), and item 6's own prose description of `applyIntent`
+gives no instruction for what value `phase` should take for either of these two intent types.
+
+**Empirically this is currently harmless** — see the F1 deep-probe above: in both of T1's
+actual batches (`grid.onSelect` and `resolveAnswer`), a `setPhase` intent is always present and
+always runs *last*, so whatever (if anything) `consumeQuestion`/`selectQuestion`'s `applyIntent`
+branch does to `phase` gets overwritten by the trailing `setPhase` before the batch finishes —
+and this is exactly what test cases (d)/(e) exercise and pass on. So this is not an undo-
+correctness bug today.
+
+**Where it does bite:** item 7 (`intents.test.ts`) instructs, per intent type, to *"assert the
+touched key(s) changed."* Taken literally for `consumeQuestion`/`selectQuestion` in isolation
+(single-intent, not as part of a batch — which is what `intents.test.ts` tests, as opposed to
+`log.test.ts`'s batch-level tests), this requires `applyIntent` to change `phase` for these two
+intent types even when called alone, but item 6 gives no rule for what to change it *to*. An
+EXECUTE agent implementing this test literally would have to invent unspecified behavior to
+make it pass.
+
+**Recommended fix:** either (a) remove `phase` from `consumeQuestion`'s and `selectQuestion`'s
+rows in the `INTENT_TOUCHED_KEYS` table (since `setPhase` is the sole owner of phase
+transitions per the batches as designed), and note that the union-snapshot is deliberately
+over-inclusive-safe but these two entries were not meant to imply a value-write; or (b) if a
+future style plugin could plausibly emit `consumeQuestion`/`selectQuestion` *without* a
+trailing `setPhase`, specify the phase-derivation rule explicitly now rather than leaving it
+implicit. (a) is the lower-effort, more honest fix given no such call site exists today.
+
+---
+
+### Residual notes (non-blocking, no action required to reach PASS)
+
+- **F2 citation nit.** Item 27 states the new built-in-style-kind check pushes an error "in the
+  SAME format as the registry's own `check()` helper" and gives the template
+  `"${where}: unknown style plugin \"${kind}\". Registered: ${known}"`. Direct read of `check()`
+  (`src/registry/index.ts:264-269`) shows its actual format is
+  `` `${where}: unknown ${kind} plugin "${key}"` `` — **no** `"Registered: ..."` suffix. That
+  suffix is actually `resolve()`'s format (`src/registry/index.ts:250-252`), not `check()`'s.
+  The literal template given in item 27 is fine and buildable as written (and arguably more
+  useful than `check()`'s real bare format) — only the citation ("same format as `check()`") is
+  wrong. Cosmetic; does not affect item 27a's test expectations, which match the *given*
+  template correctly.
+- **F7 residual.** `TimerRules.questionSec` is typed `number | null` (`null` = untimed,
+  `src/config/types.ts:452`). Item 6's resume formula
+  (`clockStartedAt = Date.now() - (questionSec * 1000 - intent.ms)`) doesn't guard the `null`
+  case (JS would coerce `null * 1000` to `0`, producing a nonsense future-dated
+  `clockStartedAt`). Confirmed no T1 default or preset sets `questionSec: null`
+  (`src/config/defaults.ts:52` default is `30`) and a pause/resume control on an untimed
+  question is a plausible UI gap regardless of this formula. Not blocking; worth a one-line
+  guard (`if (questionSec == null) return state` or similar) if the supplement is touching
+  this area anyway, but not required to reach PASS.
+- **Sub-Phase 5/6 parallelism wording.** The plan's TL;DR says *"Sub-Phases 3 and 4 are
+  parallel-safe; everything else is a straight dependency chain,"* but the Dependencies and
+  Sequencing section's own notation (`{5, 6, both depend on 3 and 4}`) uses the same
+  curly-brace grouping it uses for the explicitly-parallel `{3, 4}` pair. Given stage/host have
+  no cross-imports (the isolation invariant guarantees this), 5 and 6 are very likely also
+  parallel-safe — the TL;DR undersells this. Purely cosmetic; the per-sub-phase checklist
+  headers themselves are unambiguous ("depends on 3, 4" for both, independently), so this
+  doesn't block or mislead EXECUTE.
+
+---
+
+### Test Coverage Plan (C-4 5-column form — updated this cycle)
 
 | criterion id | behavior | strategy | proving test | gap-resolution |
 |---|---|---|---|---|
-| SPEC-AC3 | Preflight catches unregistered plugin keys (transport/scoring/style-custom/lifeline/handler/widget) | Fully-Automated | `npx tsx src/registry/validateConfigPlugins.test.ts` | A |
-| SPEC-AC3-gap | Preflight catches unregistered **built-in** style kinds (grid/wheel/list/tictac/hangman/trivia) | Fully-Automated | none exists — **new test required by F2's supplement** | B |
+| SPEC-AC3 | Preflight catches unregistered plugin keys | Fully-Automated | `npx tsx src/registry/validateConfigPlugins.test.ts` | A |
+| SPEC-AC3-gap (F2) | Preflight catches unregistered **built-in** style kinds | Fully-Automated | `npx tsx src/registry/bootstrap.test.ts` | **A — closed this cycle** |
 | L1 | Full phase transition truth table | Fully-Automated | `npx tsx src/engine/phase.test.ts` | A |
-| Immutability | Per-intent touched-key update + untouched-key reference identity | Fully-Automated | `npx tsx src/engine/intents.test.ts` | A |
-| SPEC-AC6 (single-intent) | `awardPoints` → `undo()` restores prior score, log grows not shrinks | Fully-Automated | `npx tsx src/engine/log.test.ts` | A |
-| **SPEC-AC6 (host-action, F1)** | **A single host action (2-3 intents) is fully reversed by ONE `undo()` call** | Fully-Automated | **none exists — new test required by F1's supplement (both `onSelect`'s 2-intent batch and `resolveAnswer`'s 3-intent batch need a dedicated round-trip case)** | **B** |
-| SPEC-AC11 | `structuredClone` isolation — post-create config mutation doesn't leak into session | Fully-Automated | `npx tsx src/engine/session.test.ts` | A |
-| SPEC-AC5 | Full host-manual round, zero player devices, select→reveal→award→next to `isRoundComplete` | Fully-Automated | `npx tsx src/engine/host-manual-round.test.ts` | A |
-| Style contract | Board build, availability, select intents, completion | Fully-Automated | `npx tsx src/styles/grid.test.ts` | A |
-| SPEC-AC8 | Scoring purity via recursively-frozen state harness + formula correctness | Fully-Automated | `npx tsx src/scoring/flat.test.ts` | A |
+| Immutability | Per-intent touched-key update + untouched-key identity | Fully-Automated | `npx tsx src/engine/intents.test.ts` | A (see G3 — passes, but table ambiguity noted) |
+| SPEC-AC6 (single-intent) | `awardPoints` → `undo()` round trip | Fully-Automated | `npx tsx src/engine/log.test.ts` | A |
+| **SPEC-AC6 (host-action, F1)** | Single host action (2-3 intents) fully reversed by ONE `undo()` | Fully-Automated | `npx tsx src/engine/log.test.ts` cases (d)/(e) | **A — closed this cycle, verified correct including same-key-touched-twice case** |
+| SPEC-AC11 | `structuredClone` isolation | Fully-Automated | `npx tsx src/engine/session.test.ts` | A |
+| SPEC-AC5 | Full host-manual round, zero players | Fully-Automated | `npx tsx src/engine/host-manual-round.test.ts` | A |
+| Style contract | Board build, availability, select intents, completion | Fully-Automated | `npx tsx src/styles/grid.test.ts` | A (cell count) |
+| **G2-gap (NEW)** | **`grid.buildBoard` produces cells with real content, not just correct count** | Fully-Automated | none exists — **new test + new implementation path required by G2's supplement** | **B** |
+| SPEC-AC8 | Scoring purity + formula + streak/comeback warn-once | Fully-Automated | `npx tsx src/scoring/flat.test.ts` | A |
 | Host-auth | Token 401/200, SSE delivery, teardown | Fully-Automated | `npx tsx src/transport/local.test.ts` | A |
-| **Host-auth-gap (F5)** | **Static file route rejects path-traversal requests** | Fully-Automated | **none exists — new case required in `local.test.ts` by F5's supplement** | B |
-| SPEC-AC4 / AC7-data | `broadcastState` never sends answer/acceptedAnswers/hostNote/correctChoiceIndex/numericAnswer on stage/player | Fully-Automated | inside `session.test.ts` or dedicated `broadcast.test.ts` | A |
-| **L9-gap (F4 dimension)** | **`handle.broadcast(...)` is called ONLY from `broadcast.ts`** | Fully-Automated | **none exists — recommend a grep script analogous to `check-stage-host-isolation.mjs` (execute-agent instruction, not a hard blocker)** | D |
+| Host-auth-gap (F5) | Static file route rejects path-traversal | Fully-Automated | `npx tsx src/transport/local.test.ts` case (e) | **A — closed this cycle** |
+| SPEC-AC4 / AC7-data | `broadcastState` never leaks answer fields | Fully-Automated | inside `session.test.ts` / `broadcast.test.ts` | A |
+| L9-gap (single-caller enforcement) | `handle.broadcast(...)` called ONLY from `broadcast.ts` | Fully-Automated | none exists — recommended grep script (execute-agent instruction, not blocking) | D |
+| **G1-gap (NEW, analogous to L9-gap)** | **`applyIntentsWithLog` has exactly one disciplined caller path** | Fully-Automated | none exists — recommended grep script analogous to `check-stage-host-isolation.mjs`, OR resolve via the session.ts-wrapper fix (see G1) | **D** |
 | SPEC-AC7-bundle | No `src/stage/**` import reaches `src/host/**` | Fully-Automated | `node scripts/check-stage-host-isolation.mjs` | A |
-| SPEC-AC12 | Whole-project typecheck + full aggregate suite green | Fully-Automated | `npm run typecheck && npm test` | A |
-| **F6-gap** | **`vite.config.ts` is type-checked by some gate** | Fully-Automated | **add `"vite.config.ts"` to tsconfig `include`; then covered by `npm run typecheck`** | B |
-| SPEC-AC9 (visual) | Projector legibility from back of room | Agent-Probe | manual per `ARCHITECTURE.md` §9 | A (manual gate, run at EXECUTE close) |
-| Host-auth smoke | Token required, visible failure without it | Agent-Probe | manual browser network-tab check alongside `local.test.ts` | A |
-| SPEC-AC5 (manual) | Full pre-show dry run, real venue network | Agent-Probe | manual per `ARCHITECTURE.md` §9 checklist | A |
-| SPEC-AC10 | Buzzer fairness | Known-Gap (documented) | — | no input plugin exists until T3/T4 — correctly out of T1 scope |
-| SPEC-AC9 (auto) | Visual regression on theming | Known-Gap (documented) | — | Playwright screenshot diffing is future work, correctly deferred |
+| SPEC-AC12 | Whole-project typecheck + suite green | Fully-Automated | `npm run typecheck && npm test` | A |
+| F6-gap | `vite.config.ts` type-checked | Fully-Automated | `tsconfig.json` `include` addition | **A — closed this cycle** |
+| SPEC-AC9 (visual) | Projector legibility | Agent-Probe | manual per `ARCHITECTURE.md` §9 | A (manual gate) |
+| Host-auth smoke | Token required, visible failure | Agent-Probe | manual browser check | A |
+| SPEC-AC5 (manual) | Full pre-show dry run | Agent-Probe | manual per `ARCHITECTURE.md` §9 | A |
+| SPEC-AC10 | Buzzer fairness | Known-Gap | — | correctly out of T1 scope |
+| SPEC-AC9 (auto) | Visual regression | Known-Gap | — | correctly deferred |
 
-gap-resolution legend: A — proven now (gate passes once EXECUTE lands). B — must be fixed
-in this plan via the supplement before the row can read A. D — backlog test-building stub
-(named residual; recommended but not blocking — see F4 note).
+gap-resolution legend: A — proven now / closed this cycle. B — must be fixed in this plan via
+the next supplement before the row reads A. D — backlog test-building stub (named residual;
+recommended but not blocking).
+
+**Legacy line form:**
+- G2 (grid board content): `[known-gap-until-supplement: no implementation path specified for grid.buildBoard's content resolution — blocks Goal 1]`
+- G1 (sole-caller discipline): `[agent-probe/backlog: recommend a grep script analogous to check-stage-host-isolation.mjs, or resolve via a session.ts wrapper]`
+- All F1-F8 rows: `[Fully-automated: npx tsx src/engine/log.test.ts / src/registry/bootstrap.test.ts / src/transport/local.test.ts — all closed this cycle]`
 
 **What this coverage does NOT prove:**
-- The full 5-column table above proves each row's named behavior only. It does NOT prove
-  that a multi-intent host action is fully reversible in one click (F1) until the B-marked
-  row for that is added and passes — this is exactly why the net gate is BLOCKED, not
-  CONDITIONAL.
-- `check-stage-host-isolation.mjs` proves *source-level* direct import isolation for files
-  directly under `src/stage/`. It does NOT prove transitive isolation (e.g. if a shared
-  `src/engine/` file some day imported from `src/host/`) and does NOT inspect the *built*
-  `dist/stage/*.js` bundle contents — it is a pre-build static check only.
-- `local.test.ts`'s SSE assertion proves message delivery shape, not multi-client fan-out
-  behavior under load, nor reconnect-after-drop semantics beyond "the browser's native
-  auto-reconnect keeps last state visible" (which is asserted structurally in `stage/main.ts`
-  but not exercised by an automated test — it is implicitly covered only by the Agent-Probe
-  manual dry-run).
-- None of the Fully-Automated rows prove anything about concurrent host devices (two
-  browsers open to `host.html` simultaneously) — not a T1 requirement per the SPEC (single
-  host), but worth naming as an untested assumption.
+- The updated table above proves each row's named behavior only once the B-marked rows (G2)
+  are added and pass. Until then, it does NOT prove a real, playable grid board can be built
+  from a real preset — the plan's own worked example (`presets/demo-t1.ts`) cannot be verified
+  end-to-end as specified, which is exactly why the net gate is CONDITIONAL, not PASS.
+- `intents.test.ts` (once written per item 7) will prove per-intent-type key updates only for
+  whatever behavior the supplement settles on for `consumeQuestion`/`selectQuestion`'s `phase`
+  handling (G3) — it does not currently have a defined target to test against.
+- Everything already true of cycle-0's own "does not prove" list (import-isolation is
+  source-level only, not built-bundle; SSE proves message shape, not multi-client/reconnect
+  load behavior) still holds unchanged.
 
 ---
 
 ### Open gaps
 
-- F1 (FAIL) — multi-intent host actions not atomically undoable in one click. Must be
-  closed via plan supplement before EXECUTE.
-- F2 (CONCERN) — `validateConfigPlugins()` doesn't check built-in style kinds.
-- F3 (CONCERN) — bundled default preset (`school-assembly.ts`) silently breaks under T1
-  once past round 1; `server.ts`'s default argument points at it.
-- F5 (CONCERN) — static file server has no path-traversal containment.
-- F6 (CONCERN, minor) — `vite.config.ts` outside tsconfig `include`.
-- F7 (CONCERN, minor) — `startClock` resume-anchor derivation underspecified.
-- F8 (note, accepted) — non-constant-time token comparison; not blocking.
+- G2 (CONCERN, material) — `grid.buildBoard`'s content-resolution path is unspecified and the
+  plan's own description of it is self-contradictory. Must be closed via plan supplement
+  before EXECUTE — this blocks Goal 1.
+- G1 (CONCERN) — plan text contradicts itself on whether `session.ts` or `server.ts` is the
+  sole caller of `applyIntentsWithLog`. Recommend closing via supplement for architectural
+  clarity; does not block undo correctness on its own.
+- G3 (CONCERN, minor) — `INTENT_TOUCHED_KEYS` lists `phase` for `consumeQuestion`/
+  `selectQuestion` with no corresponding `applyIntent` instruction. Recommend closing via
+  supplement (removing the ambiguous table entries) for `intents.test.ts` (item 7) to be
+  writable as literally specified; does not affect undo correctness today.
+- F7 residual (non-blocking) — `startClock`'s resume formula doesn't guard `questionSec: null`;
+  no current preset hits this, optional cleanup only.
+- F2 citation nit (non-blocking) — item 27's "same format as `check()`" claim is factually
+  wrong (it actually matches `resolve()`'s format); the literal template given is fine as-is.
 
-Accepted by: n/a — Gate is BLOCKED, not CONDITIONAL. No concerns have been accepted; the
-FAIL (F1) has not been resolved or explicitly converted to CONDITIONAL by a user in this
-session.
+Accepted by: n/a — no user is present in this autonomous VALIDATE cycle to accept these
+residuals. Per `orchestration.md`'s "first-pass CONDITIONAL is not terminal" rule, G1/G2/G3
+route to one more plan supplement (PVL cycle 3) before EXECUTE is authorized. If a human
+reviewer instead chooses to accept G1/G2/G3 as documented, non-blocking residuals (e.g. by
+descoping G2 to "grid board content is stubbed with placeholder text for T1's initial
+EXECUTE pass, real content wiring is a fast-follow"), that acceptance must be recorded here
+by name before EXECUTE proceeds — this contract does not make that call unilaterally, because
+G2 concretely blocks Goal 1 as currently specified.
 
-Gate: BLOCKED
+Gate: CONDITIONAL
 
 ---
+
+### SUPPLEMENT REQUEST
+
+```
+SUPPLEMENT REQUEST:
+- Gap 1: Section "Sub-Phase 3 — grid style + flat scoring" (item 12) | Concern: grid.buildBoard(round, options) has no specified channel to receive real question-bank content — options is claimed to be both "the resolved GridStyle config object" (no bank field) and "the resolved question bank" in the same sentence; no other function in the plan resolves round.bankId/categoryIds against config.content.banks before buildBoard needs it | Severity: CONCERN (material — blocks Goal 1) | Suggested addition: define a richer T1-local options shape for the 'grid' registration (e.g. GridStyle & { categories: Category[] }), specify exactly where it is assembled (recommend a small pure resolveRoundContent(config, round) helper called from session.ts before buildBoard), and update item 13's test to assert real cell content, not just cell count.
+- Gap 2: Section "Sub-Phase 2 — Intent application + event log + generic undo" (item 8) vs Section "Sub-Phase 7 — Integration entrypoint" (item 28) | Concern: item 8 states session.ts is the ONLY caller of applyIntentsWithLog; item 28 and the Public Contracts section both describe server.ts calling it directly, which is a different, unreconciled claim | Severity: CONCERN | Suggested addition: either add a session.ts wrapper (e.g. dispatchHostAction) that server.ts calls instead of log.ts directly, making the "sole caller" claim literally true, or rewrite item 8's invariant to state the actual load-bearing rule ("every call site batches the whole host action into one applyIntentsWithLog call, never a per-intent loop") regardless of file.
+- Gap 3: Section "Sub-Phase 2 — Intent application + event log + generic undo" (item 6) | Concern: INTENT_TOUCHED_KEYS lists consumeQuestion and selectQuestion as touching `phase`, but neither Intent variant carries a phase value and applyIntent's own description gives no rule for deriving one — item 7's test-writing instruction ("assert the touched key(s) changed") is then unwritable as specified for these two intent types | Severity: CONCERN (minor) | Suggested addition: remove `phase` from consumeQuestion's and selectQuestion's INTENT_TOUCHED_KEYS rows (setPhase is the sole owner of phase transitions in every currently-defined batch) and add a one-line note explaining why the union-snapshot design is deliberately over-inclusive-safe without those two rows.
+```
 
 ## Autonomous Goal Block
 
