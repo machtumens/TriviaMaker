@@ -28,7 +28,13 @@ are parallel-safe; everything else is a straight dependency chain. **This plan
 was PVL-supplemented on 24-08-26** to close VALIDATE's first-pass `Gate:
 BLOCKED` finding (F1, undo granularity) plus five CONCERNs (F2, F3, F5, F6,
 F7) and one accepted note (F8) — see Design Locks L2a/L12-L15 and the
-per-item checklist notes below for exactly what changed.
+per-item checklist notes below for exactly what changed. **A second,
+cycle-3 PVL supplement (24-08-26)** closed three new CONCERNs VALIDATE's
+cycle-2 re-run found (G1 — `applyIntentsWithLog`'s sole-caller claim was
+self-contradictory; G2, material, blocked Goal 1 — `grid.buildBoard` had no
+channel to real question content; G3 — an unwritable `intents.test.ts`
+assertion) plus two non-blocking residuals (F2 citation, F7 null-guard) —
+see Design Lock L16, item 11a, and the per-item notes below.
 
 ---
 
@@ -101,6 +107,7 @@ referenced by short name in the checklist below.
 | **L13 — T1 ships its own demo preset; `flat` warns once on unimplemented streak/comeback (PVL supplement, 24-08-26)** | `presets/school-assembly.ts` (the plan's original bundled demo) enables `streak` in round 2 and uses the unregistered `'trivia'` style in its `final` round — both crash or silently mis-score under T1 (VALIDATE F3). Two independent fixes, both applied: (1) `presets/demo-t1.ts` — a new, T1-scoped demo preset containing only `grid`-style rounds with streak/comeback left off — becomes `server.ts`'s zero-argument default (item 28); `school-assembly.ts` is left UNCHANGED as a worked T2+ example, per the original plan's intent. (2) `flat.score()` additionally warns once per process (`console.warn`, not a throw) whenever it receives `rules.scoring.streak.enabled` or `.comeback.enabled === true`, as a visible guard against silently-wrong on-stage scores — this is deliberate insurance, not defensive clutter, and applies to ANY config, not just the bundled presets. |
 | **L14 — Static file serving is path-contained (PVL supplement, 24-08-26)** | `local.ts`'s static-file `GET` route (item 18) resolves the requested path with `path.resolve`, verifies it stays within the resolved `options.staticDir` via a prefix check, and responds `403`/`404` on escape — closing VALIDATE F5 (unbounded `node:http` server on the venue LAN with no path-traversal containment). |
 | **L15 — `vite.config.ts` is type-checked (PVL supplement, 24-08-26)** | `tsconfig.json`'s `include` gains `"vite.config.ts"` (Sub-Phase 8, item 30) so `npm run typecheck` actually covers it — closing VALIDATE F6 (previously covered by neither `tsc` nor `vite build`'s untyped esbuild transpile). |
+| **L16 — `session.ts` dispatch wrapper + grid content resolution (PVL supplement, cycle 3, 24-08-26, closes VALIDATE G1 + G2)** | `session.ts` exports `resolveRoundContent(config, round): Category[]` (resolves `round.bankId`/`categoryIds` against `config.content.banks`, throws descriptive errors on a missing bank or unknown category — item 11a) and `dispatchHostAction(state, intents, seq, at)` (a thin wrapper around `log.ts`'s `applyIntentsWithLog` — the ONLY call site for it anywhere in the codebase, item 11a). `grid.ts` defines a T1-local `GridBuildOptions = GridStyle & { categories: Category[] }` (item 12) so `buildBoard` receives real, caller-resolved content instead of a bare `GridStyle`. Zero edits to `src/config/types.ts`/`src/registry/index.ts` — both fixes use already-exported types and `StylePlugin<O>`'s free generic. |
 
 ### L1 — Full phase transition table
 
@@ -219,9 +226,18 @@ original claim that "`tsconfig.json` needs no change" is corrected: Sub-Phase
   `rules.scoring.engine: 'flat'`.
 - **`session.ts` engine API** — `createSession`, `applyIntent`,
   `applyIntentsWithLog` (L2a — the sole logging entry point, batches a whole
-  host action's `Intent[]` into one `GameEvent`), `undo`, `resolveAnswer`,
-  used by `server.ts` and (indirectly, via HTTP) the host controller. This is
-  the new internal API surface EXECUTE and later tiers build on.
+  host action's `Intent[]` into one `GameEvent`), `dispatchHostAction` (L16,
+  item 11a, PVL supplement, cycle 3, closes VALIDATE G1 — a thin wrapper
+  around `applyIntentsWithLog`; `session.ts` is the ONLY caller of
+  `applyIntentsWithLog` anywhere in the codebase), `resolveRoundContent`
+  (L16, item 11a, closes VALIDATE G2 — resolves a round's
+  `bankId`/`categoryIds` against `config.content.banks` into `Category[]`
+  before `buildBoard` needs it), `undo`, `resolveAnswer`. `server.ts`
+  (item 28) and, indirectly via HTTP, the host controller call
+  `dispatchHostAction` — NEVER `applyIntentsWithLog` directly (corrected
+  from the plan's previous self-contradicting wording, which this same
+  bullet was part of — closes VALIDATE G1). This is the new internal API
+  surface EXECUTE and later tiers build on.
 - **`bootstrap.ts`'s `validateConfigPluginsT1`** (PVL supplement, F2) — wraps
   `validateConfigPlugins()` with an additional built-in-style-kind check;
   `server.ts`'s preflight calls this, not the raw registry function.
@@ -310,8 +326,8 @@ on any other sub-phase.
    |---|---|
    | `setPhase` | `phase` |
    | `awardPoints` | `teams` |
-   | `consumeQuestion` | `consumed`, `phase` |
-   | `selectQuestion` | `currentQuestionId`, `phase` |
+   | `consumeQuestion` | `consumed` |
+   | `selectQuestion` | `currentQuestionId` |
    | `setTurn` | `turnTeamId` |
    | `lockout` | `lockedOutTeamIds` |
    | `startClock` | `clockStartedAt` |
@@ -320,6 +336,20 @@ on any other sub-phase.
    | `effect` | *(none)* |
    | `eliminate` | `teams` |
    | `custom` | *(none by default — no generic way to know; document as a known limitation, see Open Items)* |
+
+   **`phase` removed from `consumeQuestion`'s and `selectQuestion`'s rows
+   (PVL supplement, cycle 3, closes VALIDATE G3).** `setPhase` is the sole
+   owner of phase transitions in every batch this plan defines — both
+   `grid.onSelect`'s 2-intent batch and `resolveAnswer`'s 3-intent batch
+   always include a trailing `setPhase` — and neither the `consumeQuestion`
+   nor `selectQuestion` `Intent` variant carries a phase-related field to
+   derive a value from (confirmed against `src/registry/index.ts:76-88`).
+   The union-snapshot algorithm (L2a) is deliberately over-inclusive-safe —
+   listing an extra key costs nothing — but these two entries implied
+   `applyIntent` must WRITE a `phase` value with no rule for what value,
+   which is a genuine spec gap, not intentional safety margin. Removing
+   them makes item 7's `intents.test.ts` writable exactly as specified,
+   with no invented behavior.
 
    Export `applyIntent(state: SessionState, intent: Intent): SessionState` —
    pure function, returns a NEW object (spread the unchanged top-level keys,
@@ -334,16 +364,29 @@ on any other sub-phase.
    loses elapsed time on resume. Instead compute
    `clockStartedAt = Date.now() - (questionSec * 1000 - intent.ms)`, where
    `questionSec` is read from the resolved round's timer config on
-   `state.config` for the round containing `state.currentQuestionId`. This
-   makes the client-rendered countdown (`questionSec*1000 - (now -
+   `state.config` for the round containing `state.currentQuestionId`.
+   **Null guard (PVL supplement, cycle 3, closes VALIDATE F7 residual):**
+   `TimerRules.questionSec` is typed `number | null`
+   (`src/config/types.ts:452`; `null` means an untimed question). If the
+   resolved `questionSec` is `null`, skip the resume-anchor arithmetic
+   entirely and set `clockStartedAt = null` instead — an untimed question
+   has no countdown to resume, so this is equivalent to a no-op
+   pause/resume. Without this guard, `null * 1000` coerces to `0` in JS,
+   producing a nonsense future-dated `clockStartedAt`. This makes the
+   client-rendered countdown (`questionSec*1000 - (now -
    clockStartedAt)`, item 22) correctly resume from `intent.ms` remaining
-   rather than restarting. This is an EXECUTE-time instruction, not a
+   rather than restarting, for every timed question, and correctly no-ops
+   for untimed ones. This is an EXECUTE-time instruction, not a
    design change — no new field or interface is introduced.
 7. Create `src/engine/intents.test.ts`. One assertion block per intent type
    in the table above: apply, assert the touched key(s) changed and every
    OTHER top-level key is reference-equal (`===`) to the input state's value
    (proves untouched keys are never copied/reallocated). Assert `setPhase`
-   with an illegal target throws via `assertTransition`.
+   with an illegal target throws via `assertTransition`. (PVL supplement,
+   cycle 3, closes VALIDATE G3: after the `INTENT_TOUCHED_KEYS` fix above,
+   `consumeQuestion` and `selectQuestion` each have exactly one touched key
+   to assert — `consumed` and `currentQuestionId` respectively — so this
+   item is writable exactly as specified with no invented `phase` value.)
 8. Create `src/engine/log.ts`. Export
    `applyIntentsWithLog(state: SessionState, intents: Intent[], seq: number, at: number): { state: SessionState; event: GameEvent }`
    — the batched/generic logging entry point (**L2a**, PVL supplement,
@@ -385,7 +428,12 @@ on any other sub-phase.
    `session.ts` passes that whole array to ONE `applyIntentsWithLog` call
    per host action, never a per-intent loop of individual log calls.
    This is what makes one `undo()` call reverse one host action (see
-   item 9, unchanged).
+   item 9, unchanged). The actual exported wrapper enforcing this is
+   `session.ts`'s `dispatchHostAction` (item 11a, L16 — PVL supplement,
+   cycle 3, closes VALIDATE G1); every other file, including `server.ts`
+   (item 28), calls `dispatchHostAction`, never `applyIntentsWithLog`
+   directly — this is what makes "session.ts is the ONLY caller" literally
+   true rather than merely asserted.
 
    **L4 — Intent → `GameEventName` mapping (fixed, closed union, do not add
    new members to `types.ts`):**
@@ -443,32 +491,102 @@ on any other sub-phase.
 11. Run `npx tsx src/engine/intents.test.ts src/engine/log.test.ts` (or run
     individually) — both must exit 0.
 
+11a. Create `src/engine/session.ts`'s `dispatchHostAction` and
+    `resolveRoundContent` exports (L16, PVL supplement, cycle 3, closes
+    VALIDATE G1 + G2). Full `session.ts` creation (`createSession`,
+    `applyIntent` usage, `resolveAnswer`, etc.) is already covered by its
+    existing Touchpoints/Public Contracts entries; this item specifies the
+    two exports the cycle-2 VALIDATE findings require:
+    - `dispatchHostAction(state: SessionState, intents: Intent[], seq: number, at: number): { state: SessionState; event: GameEvent }`
+      — a thin wrapper whose entire body is
+      `return applyIntentsWithLog(state, intents, seq, at)` (imported from
+      `log.ts`, item 8/9). This is the ONLY place in the whole codebase
+      that calls `applyIntentsWithLog` — `server.ts`'s `onCommand`
+      (item 28) and any future call site call `session.dispatchHostAction(...)`,
+      never `log.ts` directly. This makes item 8's "session.ts is the ONLY
+      caller of `applyIntentsWithLog`" invariant literally true (closes
+      VALIDATE G1 — Option (a) from the G1 finding — and resolves the
+      item 8 vs item 28 vs Public Contracts contradiction VALIDATE found).
+    - `resolveRoundContent(config: GameShowConfig, round: Round): Category[]`
+      — resolves `round.bankId`/`round.categoryIds` against
+      `config.content.banks` into the actual `Category[]` a style needs
+      (closes VALIDATE G2). Must be called before any `buildBoard` call for
+      that round — the natural call site is session.ts's own
+      round-start/round-transition handling, per the `lobby -> board` /
+      `reveal -> board` edges in L1's transition table. Exact behavior, in
+      this order (input-validation cases at a trust boundary — not left to
+      EXECUTE's judgement):
+      1. If `round.bankId` is absent (`undefined`): throw
+         `Error('[session] round "${round.id}": no bankId set; a grid-style round requires round.bankId')`.
+      2. Look up `config.content.banks.find(b => b.id === round.bankId)`.
+         If not found: throw
+         `Error('[session] round "${round.id}": bankId "${round.bankId}" not found in content.banks. Known banks: ${config.content.banks.map(b => b.id).join(', ') || '(none)'}')`.
+      3. If `round.categoryIds` is absent (`undefined`): return the found
+         bank's full `categories` array, unfiltered, in the bank's own order.
+      4. If `round.categoryIds` is present: for each id in
+         `round.categoryIds`, find the matching `Category` in the bank. If
+         ANY id has no match: throw
+         `Error('[session] round "${round.id}": categoryIds references unknown category "${badId}" in bank "${round.bankId}". Known categories: ${bank.categories.map(c => c.id).join(', ')}')`
+         (fail on the FIRST unmatched id found — do not silently drop it).
+         If all ids match: return the categories in `categoryIds`'s given
+         order (the show author's explicit ordering wins over bank order),
+         one `Category` per id.
+      `GridBuildOptions` (L16, item 12) is then assembled by the caller as
+      `{ ...round.style, categories: resolveRoundContent(config, round) }`
+      before invoking `grid.buildBoard(round, options)`.
+      `dispatchHostAction`/`resolveRoundContent` are internal to
+      `session.ts`; no `src/registry/index.ts` or `src/config/types.ts`
+      edit is required for either (`GameShowConfig`, `Round`, `Category`
+      are all already-exported types).
+
 ### Sub-Phase 3 — `grid` style + `flat` scoring (depends on 2; parallel-safe with 4)
 
-12. Create `src/styles/grid.ts`. Implement `StylePlugin<GridStyle>` with
-    `key: 'grid'`. `buildBoard(round, options)`: one `BoardModel` cell per
-    `(row, col)` where `row` indexes `options.pointLadder` and `col` indexes
-    the round's questions-per-category (derive from `round.categoryIds` +
-    the resolved question bank passed in via `options` — options is the
-    resolved `GridStyle` config object itself, per the registry's generic
-    `O` type param); `cells[].consumed` is computed from `state.consumed`,
-    NOT stored separately. `availableQuestions(state, board)`: cell
-    `questionId`s where `!state.consumed.has(id)`. `onSelect(state, questionId)`:
+12. Create `src/styles/grid.ts`. Define
+    `type GridBuildOptions = GridStyle & { categories: Category[] }` (L16,
+    PVL supplement, cycle 3, closes VALIDATE G2 — `GridStyle`/`Category` are
+    already-exported types from `src/config/types.ts`; `StylePlugin<O>`'s
+    `O` is a free, unconstrained generic per `src/registry/index.ts:94`, so
+    no interface edit is required). Implement `StylePlugin<GridBuildOptions>`
+    with `key: 'grid'`. `buildBoard(round, options)`: one `BoardModel` cell
+    per `(row, col)` where `row` indexes `options.pointLadder` and `col`
+    indexes `options.categories` — the round's resolved `Category[]`,
+    assembled by the CALLER (`session.ts`'s `resolveRoundContent`,
+    item 11a) and passed in as part of `options` BEFORE `buildBoard` is
+    invoked; `grid.ts` itself never resolves `round.bankId`/`categoryIds`
+    (this corrects the plan's previous self-contradictory description —
+    `options` is `GridBuildOptions`, not the bare `GridStyle` config
+    object, and it carries real resolved content rather than a
+    claimed-but-absent "resolved question bank"). Each cell's `questionId`
+    and `label` come from `options.categories[col].questions[row]` (show
+    authors are expected to order each category's `questions[]` to match
+    `pointLadder`'s row order; T1 does not validate this ordering at
+    runtime — a documented limitation, not new scope for this supplement).
+    `cells[].consumed` is computed from `state.consumed`, NOT stored
+    separately. `availableQuestions(state, board)`: cell `questionId`s
+    where `!state.consumed.has(id)`. `onSelect(state, questionId)`:
     return `[{type:'selectQuestion', questionId}, {type:'setPhase', phase:'reading'}]`
     (these two intents are applied and logged as ONE `GameEvent` by
-    `session.ts`'s single `applyIntentsWithLog` call — L2a — closing
-    VALIDATE F1; `grid.ts` itself has no knowledge of batching).
-    `onResolved(state, correct)`: return `[]` per L6 — grid has no
-    style-specific extra consequences in T1. `isRoundComplete(state, board)`:
+    `session.ts`'s single `dispatchHostAction`/`applyIntentsWithLog` call —
+    L2a/L16 — closing VALIDATE F1; `grid.ts` itself has no knowledge of
+    batching). `onResolved(state, correct)`: return `[]` per L6 — grid has
+    no style-specific extra consequences in T1. `isRoundComplete(state, board)`:
     true iff every cell's `questionId` is in `state.consumed`. Set
     `stageComponent`/`hostComponent` to placeholder string keys
     (`'grid-board'`/`'grid-host-board'`) — Sub-Phases 5/6 render by
     switching on these strings.
-13. Create `src/styles/grid.test.ts`. Assert `buildBoard` cell count equals
-    `columns * rows` for a fixture `GridStyle`; assert `availableQuestions`
-    excludes a pre-consumed id; assert `onSelect` returns exactly the two
-    intents above in order; assert `isRoundComplete` is false with one cell
-    unconsumed and true when all are consumed.
+13. Create `src/styles/grid.test.ts`. Build a fixture `Category[]` (2
+    categories x 3 questions each, `questions[]` pre-ordered to match a
+    3-row `pointLadder`) and assemble
+    `options: GridBuildOptions = { ...fixtureGridStyle, categories: fixtureCategories }`
+    (PVL supplement, cycle 3, closes VALIDATE G2's test-coverage half).
+    Assert `buildBoard` cell count equals `columns * rows`; assert AT LEAST
+    ONE cell's `questionId` and `label` match a specific fixture question's
+    real `id`/`prompt` — not merely a correct count, which is exactly what
+    VALIDATE flagged as passing against an empty/placeholder board; assert
+    `availableQuestions` excludes a pre-consumed id; assert `onSelect`
+    returns exactly the two intents above in order; assert
+    `isRoundComplete` is false with one cell unconsumed and true when all
+    are consumed.
 14. Create `src/scoring/flat.ts`. Implement `ScoringPlugin` with
     `key: 'flat'`. `score(input)`: if `input.correct`, `delta = (question.points ?? 0) * rules.scoring.multiplier * (input.isSteal ? rules.wrongAnswer.stealValueMultiplier : 1)`;
     if not correct, `delta = -(rules.wrongAnswer.penaltyIsProportional ? (question.points ?? 0) * rules.scoring.multiplier : rules.wrongAnswer.penalty)`.
@@ -626,9 +744,19 @@ on any other sub-phase.
     (the unmodified registry function), then additionally, for every round
     where `round.style.kind !== 'custom'`, checks
     `list('style').includes(round.style.kind)` — pushing an error string
-    in the SAME format as the registry's own `check()` helper
+    using the literal template
     (`"${where}: unknown style plugin \"${kind}\". Registered: ${known}"`)
-    when it is not registered. This lives entirely in `bootstrap.ts`, not
+    when it is not registered. (Citation correction, PVL supplement, cycle
+    3, closes VALIDATE residual F2 citation nit: this template is NOT the
+    same format as the registry's `check()` helper — `check()`'s actual
+    format is `` `${where}: unknown ${kind} plugin "${key}"` ``, with no
+    `Registered: ...` suffix, confirmed at `src/registry/index.ts:264-269`.
+    The `Registered: ...` suffix actually belongs to `resolve()`'s format
+    — `src/registry/index.ts:250-252`. The literal template given here is
+    a deliberate hybrid of both and is fine and buildable exactly as
+    written; only the prior "same format as check()" citation was wrong.
+    Does not affect item 27a's test expectations, which match this
+    template correctly.) This lives entirely in `bootstrap.ts`, not
     `registry/index.ts` — zero edits to the protected T0 files.
 27a. Create `src/registry/bootstrap.test.ts` (PVL supplement, F2). Imports
     `bootstrap.ts` for its registration side effect (this test
@@ -664,8 +792,11 @@ on any other sub-phase.
     `.start({ hostToken, staticDir: 'dist' })`, wires `onCommand` to
     dispatch each host command's resulting `Intent[]` (from `onSelect`,
     `resolveAnswer`, or a single-intent pause/resume call) as ONE array
-    to ONE `applyIntentsWithLog` call (L2a — closes VALIDATE F1; never a
-    per-intent loop), then `undo` on the undo command, and re-call
+    to ONE `session.dispatchHostAction(...)` call (L16, item 11a, PVL
+    supplement, cycle 3, closes VALIDATE G1 — `server.ts` never imports
+    `log.ts`/`applyIntentsWithLog` directly; L2a's batching guarantee still
+    closes VALIDATE F1 unchanged, only the call path is corrected), then
+    `undo` on the undo command, and re-call
     `broadcastState` after every mutation, and prints to the console:
     `Stage: http://<lan-ip>:<port>/stage.html` and
     `Host:  http://<lan-ip>:<port>/host.html?token=<hostToken>`.
@@ -709,7 +840,7 @@ scripts, run via the new `scripts/run-tests.mjs` aggregator (L11).
 | `src/engine/log.ts` | Fully-Automated | Undo reverses (single-intent AND multi-intent host-action batches, cases (d)/(e), closes F1) + log stays append-only + depth bound | `npx tsx src/engine/log.test.ts` | SPEC AC#6 (upgraded from Known-Gap) |
 | `src/engine/session.ts` | Fully-Automated | `structuredClone` isolation (post-create config mutation doesn't leak) | `npx tsx src/engine/session.test.ts` | SPEC AC#11 (upgraded from Known-Gap) |
 | `src/engine/host-manual-round.test.ts` | Fully-Automated | Full round, zero player devices, select→reveal→award→next loop to `isRoundComplete` | `npx tsx src/engine/host-manual-round.test.ts` | SPEC AC#5 (upgraded from Known-Gap; manual dry-run below still required) |
-| `src/styles/grid.ts` | Fully-Automated | Board build, availability, select intents, completion | `npx tsx src/styles/grid.test.ts` | Style contract correctness |
+| `src/styles/grid.ts` | Fully-Automated | Board build w/ real fixture content (closes VALIDATE G2, L16 — not just cell count), availability, select intents, completion | `npx tsx src/styles/grid.test.ts` | Style contract correctness |
 | `src/scoring/flat.ts` | Fully-Automated | Purity via frozen-state harness + formula correctness + streak/comeback warn-once (case (d), closes F3 silent-scoring half) | `npx tsx src/scoring/flat.test.ts` | SPEC AC#8 (upgraded from Known-Gap) |
 | `src/transport/local.ts` | Fully-Automated | Token auth (401/200), SSE frame delivery, teardown, path-traversal rejection (case (e), closes F5) | `npx tsx src/transport/local.test.ts` | Host-auth mitigation from INNOVATE risk table |
 | `src/engine/broadcast.ts` (redaction call site) | Fully-Automated | Injected fake `TransportHandle` never receives `answer`/`acceptedAnswers`/`hostNote`/`correctChoiceIndex`/`numericAnswer` on `'stage'`/`'player'` channels | covered inside `session.test.ts` or a dedicated `broadcast.test.ts` | SPEC AC#4 (existing coverage) + AC#7 data-boundary half |
@@ -750,7 +881,7 @@ test("GET requests attempting path traversal outside staticDir are rejected with
 | `log.test.ts` | Fully-Automated | AC#6 (single-intent AND host-action-batch granularity, closes F1) |
 | `session.test.ts` | Fully-Automated | AC#11, invariant #2 |
 | `host-manual-round.test.ts` | Fully-Automated | AC#5 (automated half) |
-| `grid.test.ts` | Fully-Automated | Style contract compliance |
+| `grid.test.ts` | Fully-Automated | Style contract compliance; real fixture-content assertion (closes VALIDATE G2, L16) |
 | `flat.test.ts` | Fully-Automated | AC#8, invariant #3; streak/comeback warn-once (closes F3 silent half) |
 | `local.test.ts` | Fully-Automated | Host-auth risk mitigation (INNOVATE vc-predict Medium risk); path-traversal containment (closes F5) |
 | redaction-call-site test | Fully-Automated | AC#4, AC#7 (data half), invariant #4 |
@@ -818,6 +949,12 @@ Testable outcomes for T1, each mapped to the SPEC criterion it closes or advance
     traversal requests against the static file route are rejected with
     `403`/`404`, never `200`, and never leak file content outside
     `staticDir`. (Closes VALIDATE F5.)
+16. Running `npx tsx src/styles/grid.test.ts` passes with real fixture
+    content: at least one built cell's `questionId`/`label` matches actual
+    fixture question data, not merely a correct cell count. (Closes
+    VALIDATE G2 — `grid.buildBoard` now has a real content-resolution
+    channel via `resolveRoundContent`/`GridBuildOptions`, L16; this
+    directly unblocks Goal 1.)
 
 ## Phase Completion Rules
 
@@ -862,6 +999,22 @@ Testable outcomes for T1, each mapped to the SPEC criterion it closes or advance
    oversight — and applies only under T1's stated threat model; it must be
    revisited if this transport is ever exposed beyond the venue LAN, which
    the SPEC explicitly rules out for T1.
+5. **Recurring `StylePlugin` under-context pattern** (root-cause note added
+   by the PVL supplement, cycle 3, per VALIDATE G2's finding). G2 (`grid.buildBoard`
+   had no channel to real question content, closed via L16/item 11a) is the
+   THIRD gap of the same shape found in `StylePlugin`: (i) INNOVATE found no
+   `SessionState` slot for style-owned persistent state; (ii) INNOVATE found
+   `buildBoard` never receives `state`; (iii) VALIDATE cycle 2 found
+   `buildBoard` cannot reach question content without an external
+   resolution step. Each was individually patchable at the T1-local call
+   site without touching `src/registry/index.ts`, but three instances of
+   the same shape is a signal, not a coincidence. Recommend T2 revisit the
+   `StylePlugin` signature itself (e.g. passing one richer per-style
+   context object covering state + resolved content, rather than
+   continuing to patch individual call sites with T1-local option types)
+   as a design item for the T2 SPEC/INNOVATE pass. Do NOT attempt this
+   signature revisit inside T1 EXECUTE even if it looks tempting mid-build
+   — that is out of scope for this plan (see Open Item 2 above, unchanged).
 
 ---
 
@@ -897,7 +1050,12 @@ Within Sub-Phase 7 (PVL supplement additions): item 27a (`bootstrap.test.ts`)
 depends on item 27 (`bootstrap.ts`) and may run immediately after it, in
 parallel with item 27b (`presets/demo-t1.ts`, no dependency on 27/27a);
 item 28 (`server.ts`) depends on both 27b (for its new default argument)
-and 27/27a (for the `validateConfigPluginsT1` preflight call).
+and 27/27a (for the `validateConfigPluginsT1` preflight call). Item 11a
+(`session.ts`'s `dispatchHostAction`/`resolveRoundContent`, PVL supplement,
+cycle 3) depends on item 8/9 (`log.ts`) for `dispatchHostAction` and on the
+registry/config types only for `resolveRoundContent`; it must complete
+before item 12 (`grid.ts`'s `GridBuildOptions` usage, Sub-Phase 3) and
+item 28 (`server.ts`, Sub-Phase 7) — both now consume its exports.
 
 ## Risks
 
@@ -1332,12 +1490,13 @@ SUPPLEMENT REQUEST:
 ```
 SESSION GOAL: Ship T1 (playable core, host-manual) of the TriviaMaker game-show engine — phase machine, generic undo, grid+flat, local transport with host-auth, stage+host UI, runnable end-to-end with zero player devices.
 Charter + umbrella plan: N/A — single plan, no phase-program umbrella exists for this work.
-Autonomy: standard RIPER-5 gates apply. VALIDATE gate is BLOCKED — EXECUTE is not authorized until F1 (and, ideally, F2/F3/F5/F6/F7) are closed via a plan supplement and VALIDATE is re-run to PASS or an explicit user-accepted CONDITIONAL.
+Autonomy: standard RIPER-5 gates apply. VALIDATE cycle 2 gate reads CONDITIONAL (0 FAIL, 3 CONCERN: G1/G2/G3 — see Validate Contract section above). This PLAN has now been PVL-supplemented a second time (cycle 3, 24-08-26) to close G1/G2/G3. EXECUTE is not authorized until VALIDATE re-runs from V1 against this cycle-3-supplemented plan and returns Gate: PASS or an explicit user-accepted CONDITIONAL — this supplement's own edits are not self-certifying.
 Hard stop conditions / safety constraints:
-- Do not route to or begin EXECUTE MODE while this contract's Gate reads BLOCKED.
-- Do not modify src/config/types.ts or src/registry/index.ts (settled T0 contracts) when closing F1/F2 — prefer the wrapper/payload-convention fixes named in the F1/F2 findings over any interface edit.
-- The generic-undo fix (F1) must guarantee one host action = one undo() call, covering both the 2-intent onSelect() batch and the 3-intent resolveAnswer() batch, before this plan can PASS.
-Next phase: PLAN supplement (vc-plan-agent, PVL-supplement mode) addressing the SUPPLEMENT REQUEST below, then re-run VALIDATE from V1.
+- Do not route to or begin EXECUTE MODE until VALIDATE re-runs against this cycle-3 supplement and confirms Gate: PASS or an accepted CONDITIONAL.
+- Do not modify src/config/types.ts or src/registry/index.ts (settled T0 contracts) when closing G1/G2/G3 — the fixes stay T1-local (GridBuildOptions in grid.ts; resolveRoundContent + dispatchHostAction in session.ts, item 11a/L16; the INTENT_TOUCHED_KEYS table edit in intents.ts).
+- The grid content-resolution fix (G2, L16) must give `buildBoard` a real, non-placeholder channel to question content, proven by a real-content test assertion (item 13, AC#16) — not just a correct cell count — before this plan can PASS. G2 blocks Goal 1.
+- The generic-undo fix (F1, still closed and re-verified this cycle) must continue to guarantee one host action = one undo() call, covering both the 2-intent onSelect() batch and the 3-intent resolveAnswer() batch.
+Next phase: VALIDATE (vc-validate-agent), re-run from V1 against this cycle-3-supplemented plan — PVL cycle 3.
 Validate contract: inline in plan, this section (process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_PLAN_24-08-26.md).
 Execute start: BLOCKED — not applicable until Gate reads PASS or an accepted CONDITIONAL. Once unblocked: `npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`; high-risk pack: no (no auth/billing/schema/migration/public-API/deploy surface — host token is a local-LAN session secret, not user auth).
 ```
