@@ -1,0 +1,21 @@
+{
+  "name": "triviamaker",
+  "version": "1.0.0",
+  "description": "Configurable game show engine",
+  "main": "index.js",
+  "scripts": {
+    "test": "tsx src/config/resolve.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0"
+  }
+}
