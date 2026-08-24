@@ -97,7 +97,7 @@ referenced by short name in the checklist below.
 | **L3 — Undo does not delete log entries** | `undo()` reverses the most recent un-reversed event within the last `runtime.undo.depth` entries by applying its `.undo` patch, then APPENDS a new synthetic event (reusing the same `GameEventName` as the action being reversed, payload tagged `{ reversalOf: <seq> }`). The log stays append-only and unbounded; nothing is ever removed from it. (Since L2a, one `event` already represents one whole host action, so this reverses one host action per `undo()` call — no change to `undo()`'s own logic was needed to close VALIDATE F1.) |
 | **L4 — Intent → GameEventName mapping** | Fixed table in Sub-Phase 2. `GameEventName` is a closed union (do not modify `types.ts`); several intents (`setTurn`, `playSound`, `effect`, `custom`, `stopClock`) have no precise match and use a documented best-fit fallback. This only affects which `integration.hooks` subscriptions fire for those intents — undo and dispute-audit correctness are unaffected because both read `payload`/`undo`, never `name`. Flagged as a real, bounded, non-blocking limitation — see Open Items. |
 | **L5 — `flat` scoring omits streak/comeback in T1** | `rules.scoring.streak`/`.comeback` fields exist in config and default `enabled:false`. T1's `flat.ts` does not implement them even when a preset sets `enabled:true` (as `school-assembly.ts` round 2 does) — this is a documented, intentional T1 gap, not a bug. Streak/comeback are T2 scope per the SPEC Capability Inventory. |
-| **L6 — Consume/award orchestration lives in `session.ts`, not the style plugin** | `resolveAnswer()` in `session.ts` calls the registered `scoring` plugin, then emits `awardPoints` + `consumeQuestion` + `setPhase` intents generically for every style, passed together as ONE `Intent[]` array to a single `applyIntentsWithLog` call (L2a) — never three separate log calls — so one `undo()` reverses the whole `resolveAnswer()` action in one press. `StylePlugin.onResolved()` is reserved for style-SPECIFIC extra consequences only; `grid.onResolved()` returns `[]` in T1. |
+| **L6 — Consume/award orchestration lives in `session.ts`, not the style plugin** | `resolveAnswer()` in `session.ts` calls the registered `scoring` plugin, then emits `awardPoints` + `consumeQuestion` + `setPhase` intents generically for every style, passed together as ONE `Intent[]` array to a single `dispatchHostAction` call (L2a/L16, a thin wrapper around `applyIntentsWithLog` — PVL supplement, cycle 5, closes VALIDATE H2) — never three separate log calls — so one `undo()` reverses the whole `resolveAnswer()` action in one press. `StylePlugin.onResolved()` is reserved for style-SPECIFIC extra consequences only; `grid.onResolved()` returns `[]` in T1. |
 | **L7 — Host token, not a `TransportHandle` field** | `TransportHandle` (`src/registry/index.ts:183-190`) is not modified. The app entrypoint (Sub-Phase 7) generates the token and passes it via `options.hostToken` into `transport.start(options)`; `local.ts` reads it from there and validates every POST against it. The token is embedded in the printed host controller URL, never in the stage URL. |
 | **L8 — `local` transport serves static files too** | Vite is BUILD-time only in T1 (`vite build` → `dist/stage/`, `dist/host/`). `local.ts`'s `node:http` server serves those built files for GET requests that don't match `/events/*` or `/command`, using `node:fs` + a small extension→content-type map. One process, one port, for the whole show — no dependency on a dev server surviving the live event. |
 | **L9 — Redaction has exactly one call site** | A single `broadcastState(handle, state, config)` helper in `src/engine/broadcast.ts` is the ONLY place that calls `handle.broadcast(...)`. It calls `redactQuestion(q, 'stage')` / `redactQuestion(q, 'player')` before broadcasting to those channels, and sends the full state unredacted to `'host'`. This minimizes the surface where redaction could be forgotten to one function. |
@@ -108,6 +108,7 @@ referenced by short name in the checklist below.
 | **L14 — Static file serving is path-contained (PVL supplement, 24-08-26)** | `local.ts`'s static-file `GET` route (item 18) resolves the requested path with `path.resolve`, verifies it stays within the resolved `options.staticDir` via a prefix check, and responds `403`/`404` on escape — closing VALIDATE F5 (unbounded `node:http` server on the venue LAN with no path-traversal containment). |
 | **L15 — `vite.config.ts` is type-checked (PVL supplement, 24-08-26)** | `tsconfig.json`'s `include` gains `"vite.config.ts"` (Sub-Phase 8, item 30) so `npm run typecheck` actually covers it — closing VALIDATE F6 (previously covered by neither `tsc` nor `vite build`'s untyped esbuild transpile). |
 | **L16 — `session.ts` dispatch wrapper + grid content resolution (PVL supplement, cycle 3, 24-08-26, closes VALIDATE G1 + G2)** | `session.ts` exports `resolveRoundContent(config, round): Category[]` (resolves `round.bankId`/`categoryIds` against `config.content.banks`, throws descriptive errors on a missing bank or unknown category — item 11a) and `dispatchHostAction(state, intents, seq, at)` (a thin wrapper around `log.ts`'s `applyIntentsWithLog` — the ONLY call site for it anywhere in the codebase, item 11a). `grid.ts` defines a T1-local `GridBuildOptions = GridStyle & { categories: Category[] }` (item 12) so `buildBoard` receives real, caller-resolved content instead of a bare `GridStyle`. Zero edits to `src/config/types.ts`/`src/registry/index.ts` — both fixes use already-exported types and `StylePlugin<O>`'s free generic. |
+| **L17 — Board delivery: `broadcastState` builds and redacts the board on every call, no cached `board` field (PVL supplement, cycle 5, 24-08-26, closes VALIDATE H1)** | `broadcastState` (`src/engine/broadcast.ts`, item 17, L9's one call site) is the ONLY place `BoardModel` is constructed and delivered — no other file calls `resolve('style', …).buildBoard(...)`, and `SessionState` gains NO `board` field. On every call: looks up `round = config.program.rounds[state.roundIndex]`, resolves `style = resolve<StylePlugin>('style', round.style.kind)` (no grid-specific generic needed — `resolve`'s default `O = Record<string, unknown>` accepts the `GridBuildOptions`-shaped object structurally), calls `resolveRoundContent(config, round)` (item 11a, imported from `session.ts`) for `categories`, assembles `{ ...(round.style as GridStyle), categories }`, and calls `style.buildBoard(round, options)` — fresh, UNCACHED, on EVERY `broadcastState` call (i.e. after every mutation, per item 28). Deliberately uncached: `buildBoard` is a pure, cheap in-memory construction (`columns * rows` cells), so recompute cost is negligible and this avoids all invalidation logic a cached field would need. Redaction: the `'host'` payload's `board` carries `cells[].label` UNCHANGED (real question `prompt` text, per item 12/13 — host preview). The `'stage'`/`'player'` payloads get a SEPARATE redacted `BoardModel` where every cell's `label` is replaced with `String(round.style.pointLadder[cell.row] ?? '')`, regardless of `cell.consumed` — the stage/player grid NEVER carries a real `prompt` via `board.cells[].label`, selected or not. The currently-read question's actual prompt is a wholly separate, already-existing path (item 22: `redactQuestion(currentQuestion, 'stage'\|'player')` on `state.currentQuestionId`'s `Question`) — grid tiles only ever show a point value; `consumedStyle` styling is a client-side use of the existing `cells[].consumed` boolean. `stage/main.ts` (item 22) and `host/main.ts` (item 25) read `board` from their own SSE payload — NEITHER calls `buildBoard` client-side. |
 
 ### L1 — Full phase transition table
 
@@ -182,7 +183,8 @@ reverses one host action per call.
 | `src/engine/intents.test.ts` | NEW | intents.ts |
 | `src/engine/log.ts` | NEW | intents.ts |
 | `src/engine/log.test.ts` | NEW | log.ts |
-| `src/engine/broadcast.ts` | NEW | resolve.ts (`redactQuestion`), registry types |
+| `src/engine/broadcast.ts` | NEW (PVL supplement, cycle 5, closes H1 — now also builds/redacts `board`) | resolve.ts (`redactQuestion`), registry types, session.ts (`resolveRoundContent`) |
+| `src/engine/broadcast.test.ts` | NEW (PVL supplement, cycle 5, closes H1) | broadcast.ts |
 | `src/engine/session.ts` | NEW | phase.ts, intents.ts, log.ts, registry `resolve()` |
 | `src/engine/session.test.ts` | NEW | session.ts |
 | `src/engine/host-manual-round.test.ts` | NEW | session.ts, grid.ts, flat.ts |
@@ -241,6 +243,11 @@ original claim that "`tsconfig.json` needs no change" is corrected: Sub-Phase
 - **`bootstrap.ts`'s `validateConfigPluginsT1`** (PVL supplement, F2) — wraps
   `validateConfigPlugins()` with an additional built-in-style-kind check;
   `server.ts`'s preflight calls this, not the raw registry function.
+- **`broadcastState`'s payload shape now includes `board: BoardModel`**
+  (PVL supplement, cycle 5, closes VALIDATE H1, see L17) — full/real
+  `cells[].label` values on `'host'`; point-value-only `cells[].label`
+  values on `'stage'`/`'player'`. New payload surface, not a new exported
+  type — `BoardModel` is already exported from `src/registry/index.ts`.
 
 No public contract touches auth/identity, billing, schema/migration, or an
 externally-reachable API — the host token is a local-LAN session secret, not
@@ -248,9 +255,10 @@ user authentication, and does not cross the SPEC's out-of-scope line.
 
 ## Blast Radius
 
-~26 new files (24 from the original build order plus `presets/demo-t1.ts`
+~27 new files (24 from the original build order plus `presets/demo-t1.ts`
 and `src/registry/bootstrap.test.ts`, added by the 24-08-26 PVL supplement
-for F3/F2) across 7 new top-level directories (`src/engine`, `src/styles`,
+for F3/F2, plus `src/engine/broadcast.test.ts` added by the cycle-5 PVL
+supplement for H1) across 7 new top-level directories (`src/engine`, `src/styles`,
 `src/scoring`, `src/transport`, `src/stage`, `src/host`, `scripts`) plus
 `vite.config.ts` at the root; two modified files, both additive-only —
 `package.json` (new devDependency + new/changed scripts, no existing script
@@ -511,26 +519,39 @@ on any other sub-phase.
       — resolves `round.bankId`/`round.categoryIds` against
       `config.content.banks` into the actual `Category[]` a style needs
       (closes VALIDATE G2). Must be called before any `buildBoard` call for
-      that round — the natural call site is session.ts's own
-      round-start/round-transition handling, per the `lobby -> board` /
-      `reveal -> board` edges in L1's transition table. Exact behavior, in
-      this order (input-validation cases at a trust boundary — not left to
-      EXECUTE's judgement):
+      that round. **Call site (PVL supplement, cycle 5, closes VALIDATE H1,
+      supersedes this item's earlier wording): the actual caller is
+      `broadcastState` (`src/engine/broadcast.ts`, item 17, L17) — NOT a
+      separate session.ts round-start/round-transition hook.
+      `broadcastState` calls `resolveRoundContent` fresh on every
+      invocation, per the `lobby -> board` / `reveal -> board` edges in
+      L1's transition table implicitly covered by "every mutation
+      re-broadcasts" (item 28), with no caching (see L17).** Exact
+      behavior, in this order (input-validation cases at a trust boundary —
+      not left to EXECUTE's judgement):
       1. If `round.bankId` is absent (`undefined`): throw
          `Error('[session] round "${round.id}": no bankId set; a grid-style round requires round.bankId')`.
       2. Look up `config.content.banks.find(b => b.id === round.bankId)`.
          If not found: throw
          `Error('[session] round "${round.id}": bankId "${round.bankId}" not found in content.banks. Known banks: ${config.content.banks.map(b => b.id).join(', ') || '(none)'}')`.
-      3. If `round.categoryIds` is absent (`undefined`): return the found
-         bank's full `categories` array, unfiltered, in the bank's own order.
-      4. If `round.categoryIds` is present: for each id in
-         `round.categoryIds`, find the matching `Category` in the bank. If
-         ANY id has no match: throw
+      3. If `round.categoryIds` is absent (`undefined`): let `result` be
+         the found bank's full `categories` array, unfiltered, in the
+         bank's own order. **(PVL supplement, cycle 5, closes VALIDATE H3)**
+         if `result.length === 0`, throw
+         `Error('[session] round "${round.id}": bank "${round.bankId}" has zero categories')`.
+         Otherwise return `result`.
+      4. If `round.categoryIds` is present: **(PVL supplement, cycle 5,
+         closes VALIDATE H3)** if `round.categoryIds.length === 0`, throw
+         `Error('[session] round "${round.id}": categoryIds is an empty array — a grid-style round requires at least one category')`.
+         Otherwise, for each id in `round.categoryIds`, find the matching
+         `Category` in the bank. If ANY id has no match: throw
          `Error('[session] round "${round.id}": categoryIds references unknown category "${badId}" in bank "${round.bankId}". Known categories: ${bank.categories.map(c => c.id).join(', ')}')`
          (fail on the FIRST unmatched id found — do not silently drop it).
          If all ids match: return the categories in `categoryIds`'s given
          order (the show author's explicit ordering wins over bank order),
-         one `Category` per id.
+         one `Category` per id. Duplicate ids within `categoryIds` are
+         intentionally NOT guarded against — accepted, documented
+         limitation, see Open Items.
       `GridBuildOptions` (L16, item 12) is then assembled by the caller as
       `{ ...round.style, categories: resolveRoundContent(config, round) }`
       before invoking `grid.buildBoard(round, options)`.
@@ -630,11 +651,51 @@ on any other sub-phase.
     `SessionState` (current question unredacted via `redactQuestion(q, 'host')`,
     which is a no-op passthrough per `resolve.ts:132`); `'stage'` and
     `'player'` each get a state view where the current question, if any, is
-    replaced by `redactQuestion(currentQuestion, 'stage' | 'player')`. Calls
+    replaced by `redactQuestion(currentQuestion, 'stage' | 'player')`.
+    **Board delivery (PVL supplement, cycle 5, closes VALIDATE H1 — full
+    algorithm at L17):** before building the three payloads, resolve
+    `round = config.program.rounds[state.roundIndex]`,
+    `style = resolve<StylePlugin>('style', round.style.kind)` (import
+    `resolve`/`StylePlugin` from `../registry/index.ts`), and
+    `categories = resolveRoundContent(config, round)` (import from
+    `./session.ts`, item 11a), then
+    `board = style.buildBoard(round, { ...(round.style as GridStyle), categories })`.
+    Attach `board` UNCHANGED to the `'host'` payload. Build a SEPARATE
+    redacted board for the `'stage'`/`'player'` payloads by mapping
+    `board.cells` and replacing every cell's `label` with
+    `String(round.style.pointLadder[cell.row] ?? '')` — never the real
+    `label` from `buildBoard`'s output. Calls
     `handle.broadcast('host', hostPayload)`, `handle.broadcast('stage', stagePayload)`,
     `handle.broadcast('player', playerPayload)` — always broadcast to all
     three channels; a channel with no connected clients is a safe no-op
     inside `local.ts`.
+17a. Create `src/engine/broadcast.test.ts` (PVL supplement, cycle 5, closes
+    VALIDATE H1's test-coverage gap). Fully-automated, no external
+    precondition. Build a fixture `SessionState` + `GameShowConfig` with
+    one round (`style.kind: 'fixture-grid'`, `pointLadder: [100, 200]`),
+    a bank with 2 categories x 2 questions (real, non-placeholder
+    `prompt` text per question), and a fake `TransportHandle` whose
+    `broadcast(channel, payload)` records every call. Before invoking
+    `broadcastState`, call `register('style', fixtureStylePlugin)` with a
+    minimal fixture `StylePlugin` defined INSIDE this test file (its
+    `buildBoard` returns one `BoardModel` cell per category x
+    pointLadder row, `label` = that cell's fixture question `prompt`) —
+    do NOT import `grid.ts` or `bootstrap.ts`; this keeps the test
+    self-contained and Sub-Phase 4 genuinely parallel-safe with
+    Sub-Phase 3, unchanged from the existing Dependencies and Sequencing
+    section. Call `broadcastState(fakeHandle, state, config)`. Assert:
+    (a) all three channels (`'host'`, `'stage'`, `'player'`) received
+    exactly one `broadcast()` call each; (b) the `'host'` payload's
+    `board.cells` contains at least one cell whose `label` matches a real
+    fixture question's `prompt` (proves the board reached a payload with
+    correct content, not a placeholder — closes VALIDATE H1); (c) the
+    `'stage'` AND `'player'` payloads' `board.cells[].label` values are
+    NEVER equal to any fixture question's `prompt` — every one equals
+    `String(pointLadder[cell.row])` instead; (d) no payload on any
+    channel contains `answer`, `acceptedAnswers`, `hostNote`,
+    `correctChoiceIndex`, or `numericAnswer` anywhere (existing
+    current-question redaction assertion, now also covering the `board`
+    field). Run `npx tsx src/engine/broadcast.test.ts` — must exit 0.
 18. Create `src/transport/local.ts`. Implement `TransportPlugin` with
     `key: 'local'`. `start(options: { port?: number; hostToken: string; staticDir?: string })`:
     creates a `node:http` server on `options.port ?? 0`. Routes:
@@ -690,9 +751,13 @@ on any other sub-phase.
 22. Create `src/stage/main.ts`. Connects `new EventSource('/events/stage')`.
     On `message`: parse JSON, call `themeToCssVars(payload.theme)`
     (`resolve.ts:102`) and `document.documentElement.style.setProperty` for
-    each returned var; render the board (grid cells, via `grid.stageComponent`
-    key dispatch — a local `switch` on `stageComponent`, currently one case:
-    `'grid-board'`); render the current (already-redacted) question text if
+    each returned var; render the board from `payload.board: BoardModel`
+    (PVL supplement, cycle 5, closes VALIDATE H1 — `stage/main.ts` NEVER
+    calls `buildBoard` itself; the board arrives pre-built and
+    pre-redacted from `broadcastState`, L17), dispatching on
+    `stageComponent`'s key (a local `switch`, currently one case:
+    `'grid-board'`) to pick the renderer that draws `payload.board.cells`;
+    render the current (already-redacted) question text if
     `phase` is `'reading'`/`'armed'`/`'adjudicate'`; render a locally-computed
     countdown from `clockStartedAt` + the resolved `questionSec` via
     `requestAnimationFrame`, showing nothing if `clockStartedAt` is `null`;
@@ -714,8 +779,12 @@ on any other sub-phase.
 24. Create `src/host/index.html` — separate Vite entry, `<script type="module" src="./main.ts">`.
 25. Create `src/host/main.ts`. Reads `token` from `location.search`. Connects
     `new EventSource('/events/host')` for full unredacted state. Renders host
-    controls: select-question (per available cells from `grid.availableQuestions`),
-    arm, mark-correct, mark-wrong, next, undo, pause/resume. Every control
+    controls: select-question (per available cells from
+    `grid.availableQuestions(state, board)`, where `board` is read from the
+    host SSE payload's `board: BoardModel` field — PVL supplement, cycle 5,
+    closes VALIDATE H1; `host/main.ts` NEVER calls `buildBoard` itself,
+    same as stage), arm, mark-correct, mark-wrong, next, undo, pause/resume.
+    Every control
     `POST`s `{ type, payload, token }` to `/command`. Undo button always
     visible and reachable in exactly one click/tap (SPEC AC#6 / live-event
     requirement). Pause: `POST { type:'stopClock' }`. Resume: host computes
@@ -843,7 +912,7 @@ scripts, run via the new `scripts/run-tests.mjs` aggregator (L11).
 | `src/styles/grid.ts` | Fully-Automated | Board build w/ real fixture content (closes VALIDATE G2, L16 — not just cell count), availability, select intents, completion | `npx tsx src/styles/grid.test.ts` | Style contract correctness |
 | `src/scoring/flat.ts` | Fully-Automated | Purity via frozen-state harness + formula correctness + streak/comeback warn-once (case (d), closes F3 silent-scoring half) | `npx tsx src/scoring/flat.test.ts` | SPEC AC#8 (upgraded from Known-Gap) |
 | `src/transport/local.ts` | Fully-Automated | Token auth (401/200), SSE frame delivery, teardown, path-traversal rejection (case (e), closes F5) | `npx tsx src/transport/local.test.ts` | Host-auth mitigation from INNOVATE risk table |
-| `src/engine/broadcast.ts` (redaction call site) | Fully-Automated | Injected fake `TransportHandle` never receives `answer`/`acceptedAnswers`/`hostNote`/`correctChoiceIndex`/`numericAnswer` on `'stage'`/`'player'` channels | covered inside `session.test.ts` or a dedicated `broadcast.test.ts` | SPEC AC#4 (existing coverage) + AC#7 data-boundary half |
+| `src/engine/broadcast.test.ts` | Fully-Automated | Board delivery + redaction: host board carries real labels, stage/player board never carries real `prompt` text, no channel leaks `answer`/`acceptedAnswers`/`hostNote`/`correctChoiceIndex`/`numericAnswer` (PVL supplement, cycle 5, closes VALIDATE H1) | `npx tsx src/engine/broadcast.test.ts` | SPEC AC#4, AC#7 data-boundary half, AC#17 (new, board delivery) |
 | Stage/host import isolation | Fully-Automated | Static grep for forbidden cross-imports | `node scripts/check-stage-host-isolation.mjs` | SPEC AC#7 bundle-boundary half (upgraded from "future addition") |
 | `npm run typecheck && npm test` | Fully-Automated | Whole-project type safety (now including `vite.config.ts`, closes F6) + full aggregate suite green | `npm run typecheck && npm test` | SPEC AC#12 |
 | Stage projector legibility | Agent-Probe / Manual | View built `stage.html` on real/simulated external display, read from distance | manual, per `ARCHITECTURE.md` §9 | SPEC AC#9 (visual, correctly stays Known-Gap for automation; manual gate is real, not skipped) |
@@ -862,6 +931,7 @@ test("a full grid round completes end-to-end using only host-manual intents, zer
 test("flat.score() is pure: two calls with the same frozen input produce deep-equal output", () => { throw new Error("NOT IMPLEMENTED") })
 test("POST /command without a valid host token returns 401 and never invokes the command handler", () => { throw new Error("NOT IMPLEMENTED") })
 test("broadcastState never sends answer/acceptedAnswers/hostNote/correctChoiceIndex/numericAnswer on the stage or player channel", () => { throw new Error("NOT IMPLEMENTED") })
+test("broadcastState attaches a real-labeled board to host and a point-value-only board to stage/player, never leaking prompt text via board.cells[].label", () => { throw new Error("NOT IMPLEMENTED") })
 test("src/stage/** contains no import path reaching into src/host/**", () => { throw new Error("NOT IMPLEMENTED") })
 test("a single host action composed of 2-3 intents (onSelect/resolveAnswer shape) is fully reversed by exactly one undo() call", () => { throw new Error("NOT IMPLEMENTED") })
 test("validateConfigPluginsT1 rejects an unregistered built-in style kind (e.g. 'trivia') the same way it rejects an unregistered custom plugin", () => { throw new Error("NOT IMPLEMENTED") })
@@ -884,7 +954,7 @@ test("GET requests attempting path traversal outside staticDir are rejected with
 | `grid.test.ts` | Fully-Automated | Style contract compliance; real fixture-content assertion (closes VALIDATE G2, L16) |
 | `flat.test.ts` | Fully-Automated | AC#8, invariant #3; streak/comeback warn-once (closes F3 silent half) |
 | `local.test.ts` | Fully-Automated | Host-auth risk mitigation (INNOVATE vc-predict Medium risk); path-traversal containment (closes F5) |
-| redaction-call-site test | Fully-Automated | AC#4, AC#7 (data half), invariant #4 |
+| `broadcast.test.ts` (redaction + board delivery, closes H1) | Fully-Automated | AC#4, AC#7 (data half), invariant #4, AC#17 |
 | `check-stage-host-isolation.mjs` | Fully-Automated | AC#7 (bundle half) |
 | `npm run typecheck && npm test` | Fully-Automated | AC#12 (now including `vite.config.ts`, closes F6) |
 | Projector legibility manual check | Agent-Probe / Manual | AC#9 (correctly not automated) |
@@ -955,6 +1025,18 @@ Testable outcomes for T1, each mapped to the SPEC criterion it closes or advance
     VALIDATE G2 — `grid.buildBoard` now has a real content-resolution
     channel via `resolveRoundContent`/`GridBuildOptions`, L16; this
     directly unblocks Goal 1.)
+17. Running `npx tsx src/engine/broadcast.test.ts` passes: `broadcastState`'s
+    `'host'` payload carries a `board` with real cell labels; its
+    `'stage'`/`'player'` payloads carry a `board` whose cell labels are
+    never a real question `prompt`, only point values; and no payload on
+    any channel contains any of the five redacted fields. (Closes VALIDATE
+    H1 — this is what makes the board actually reach a stage-bound
+    payload, unblocking Goal 1.)
+18. `resolveRoundContent` (`session.ts`) throws a descriptive error for a
+    present-but-empty `categoryIds` array and for a bank with zero
+    categories, matching the existing unknown-bank/unknown-category error
+    style. (Closes VALIDATE H3's blocking half; duplicate `categoryIds`
+    remain an accepted, documented limitation — see Open Items.)
 
 ## Phase Completion Rules
 
@@ -1015,6 +1097,28 @@ Testable outcomes for T1, each mapped to the SPEC criterion it closes or advance
    as a design item for the T2 SPEC/INNOVATE pass. Do NOT attempt this
    signature revisit inside T1 EXECUTE even if it looks tempting mid-build
    — that is out of scope for this plan (see Open Item 2 above, unchanged).
+6. **Duplicate `categoryIds` are not guarded** (H3, minor residual —
+   accepted known-gap, not fixed by the cycle-5 supplement). A round whose
+   `categoryIds` contains a repeated id produces two board columns sharing
+   every `questionId` in that category; selecting one duplicate column's
+   tile marks the other's identical tile consumed too, with no host-facing
+   explanation. Non-blocking; a T2 fast-follow could add a duplicate-id
+   guard if this proves confusing in practice. `GridStyle.columns` is also,
+   separately, unenforced against the resolved category count (H3,
+   non-blocking — see the cycle-4 Validate Contract's H3 section for
+   detail); neither is addressed by this supplement.
+7. **Cycle-5 process note (accepted known-gaps, user-authorised).** This
+   plan reached VALIDATE cycle 4 (`Gate: CONDITIONAL`, H1/H2/H3) before the
+   user reviewed the accumulated loop state and authorised proceeding
+   straight to EXECUTE after this cycle-5 supplement, WITHOUT a cycle-6
+   VALIDATE re-run. H1 and H2 are closed structurally by this supplement
+   (L17; items 17/17a/22/25; the L6 fix); H3's empty-`categoryIds`/
+   empty-bank paths are closed (item 11a, AC#18). H3's duplicate-id path
+   (Open Item 6 above) is the one item explicitly carried forward as an
+   accepted, documented known-gap rather than re-verified by an automated
+   VALIDATE pass. EXECUTE inherits responsibility for confirming L17's
+   board-redaction logic behaves as specified here, since no further PVL
+   cycle will check it before code is written.
 
 ---
 
@@ -1072,19 +1176,22 @@ item 28 (`server.ts`, Sub-Phase 7) — both now consume its exports.
 
 1. **Selected plan file path:** `process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_PLAN_24-08-26.md`
 2. **Last completed phase or step:** PLAN written, then PVL-supplemented
-   (24-08-26) addressing VALIDATE's first-pass F1 (FAIL) and F2/F3/F5/F6/F7/F8
-   (CONCERNs/notes) findings — see the Design Locks L2a/L12-L15 and the
-   updated Sub-Phase 2/3/4/7/8 checklist items above. INNOVATE record
-   persisted at `process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_INNOVATE_24-08-26.md`
-   (D2 carries a dated correction note from this same supplement pass).
-   VALIDATE's first pass (`Gate: BLOCKED`, below) predates this supplement
-   and does NOT reflect it — VALIDATE must re-run from V1. EXECUTE has not
-   run.
-3. **Validate-contract status:** a first-pass contract exists below
-   (`Gate: BLOCKED`, dated 24-08-26) but is now STALE — it was written
-   against the plan version before this PVL supplement. `ENTER VALIDATE
-   MODE` to re-run from V1 against the supplemented plan before any EXECUTE
-   work begins; do not treat the existing `BLOCKED` verdict as current.
+   FIVE times (24-08-26): cycle 1 closed F1-F8; cycle 3 closed G1-G3; cycle
+   5 (this pass) closes H1/H2/H3's blocking half. See the Design Locks
+   L2a/L12-L17 and the updated Sub-Phase 2/3/4/5/6/7/8 checklist items
+   above. INNOVATE record persisted at
+   `process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_INNOVATE_24-08-26.md`.
+   The `## Validate Contract` section below is the CYCLE-4 record (dated
+   24-08-26, `Gate: CONDITIONAL`, H1/H2/H3) — it is intentionally NOT
+   rewritten by this cycle-5 supplement (per this cycle's explicit
+   instruction); H1/H2/H3 are addressed by the checklist/Design-Lock edits
+   above the contract section, not by a new contract. EXECUTE has not run.
+3. **Validate-contract status:** the cycle-4 contract (`Gate: CONDITIONAL`)
+   below is the last-written contract and is NOT superseded by a cycle-5/6
+   re-run — the user reviewed the cycle-4 loop state and authorised
+   proceeding directly to EXECUTE after this cycle-5 supplement. There is
+   no cycle-6 VALIDATE pass. EXECUTE is authorized on this basis (see the
+   Autonomous Goal Block below).
 4. **Supporting context files loaded during this PLAN pass:**
    `process/context/all-context.md`, `process/context/tests/all-tests.md`,
    `process/context/planning/all-planning.md`,
@@ -1102,15 +1209,26 @@ item 28 (`server.ts`, Sub-Phase 7) — both now consume its exports.
    (confirming the streak-enabled round 2 and `trivia`-kind `final` round),
    `package.json`, this plan's own SPEC (AC#6, line 178), and this plan's
    own INNOVATE record (D2, appended with a dated correction note).
-5. **Next step for a fresh agent picking up mid-execution:** the existing
-   `Gate: BLOCKED` contract below predates this 24-08-26 PVL supplement and
-   must NOT be treated as current — re-run VALIDATE from V1 first. If a
-   validate-contract with `Gate: PASS` (or an accepted `CONDITIONAL`) from a
-   run AFTER this supplement already exists, resume EXECUTE at the first
-   unchecked Sub-Phase in the Implementation Checklist above (including new
-   items 27a/27b), in order — do not skip ahead even if later sub-phases
-   look independent; Sub-Phase 2 in particular (now including the L2a batch
-   logic in item 8) must be fully green before 3/4 begin.
+   Cycle-5 pass (24-08-26) additionally re-read: the cycle-4 `## Validate
+   Contract` section in full (H1/H2/H3 findings) and
+   `gameshow-engine-pvl-iteration-004_REPORT_24-08-26.md`; `src/registry/index.ts`
+   (`SessionState` — confirmed no `board` field; `StylePlugin`/`BoardModel`
+   definitions), `src/config/types.ts` (`GridStyle`, `Round`, `Category`,
+   `GameShowConfig`, `Question` — confirmed no display-label field distinct
+   from `prompt`), and `src/config/resolve.ts` (`redactQuestion` — confirmed
+   `prompt` is never stripped).
+5. **Next step for a fresh agent picking up mid-execution:** EXECUTE is
+   authorized directly from this cycle-5 supplement — no further VALIDATE
+   run is scheduled. Resume EXECUTE at the first unchecked Sub-Phase in the
+   Implementation Checklist above (including items 11a, 17/17a, 27a/27b),
+   in order — do not skip ahead even if later sub-phases look independent;
+   Sub-Phase 2 in particular (L2a batch logic, item 8) must be fully green
+   before 3/4 begin, and item 17/17a (L17 board delivery) must be fully
+   green before Sub-Phases 5/6 are considered CODE DONE (items 22/25 both
+   read `board` from the SSE payload item 17/17a proves). Open Items 6 and
+   7 record this cycle's accepted known-gaps — read them before treating
+   any residual H3 duplicate-`categoryIds` behavior as a bug to fix
+   mid-EXECUTE.
 
 ---
 
@@ -1461,13 +1579,12 @@ SUPPLEMENT REQUEST:
 ```
 SESSION GOAL: Ship T1 (playable core, host-manual) of the TriviaMaker game-show engine — phase machine, generic undo, grid+flat, local transport with host-auth, stage+host UI, runnable end-to-end with zero player devices.
 Charter + umbrella plan: N/A — single plan, no phase-program umbrella exists for this work.
-Autonomy: standard RIPER-5 gates apply. VALIDATE cycle 2 gate reads CONDITIONAL (0 FAIL, 3 CONCERN: G1/G2/G3 — see Validate Contract section above). This PLAN has now been PVL-supplemented a second time (cycle 3, 24-08-26) to close G1/G2/G3. EXECUTE is not authorized until VALIDATE re-runs from V1 against this cycle-3-supplemented plan and returns Gate: PASS or an explicit user-accepted CONDITIONAL — this supplement's own edits are not self-certifying.
+Autonomy: standard RIPER-5 gates apply. VALIDATE cycle 4 gate read CONDITIONAL (0 FAIL, 3 CONCERN: H1/H2/H3 — see Validate Contract section above, unchanged cycle-4 record). This PLAN has now been PVL-supplemented a THIRD time (cycle 5, 24-08-26) closing H1 (board delivery, L17 + items 17/17a/22/25), H2 (L6 stale reference), and H3's blocking half (item 11a empty-categoryIds/empty-bank throws, AC#18). This is the FINAL supplement — the user reviewed the cycle-4 loop state and authorised proceeding directly to EXECUTE; there is no cycle-6 VALIDATE re-run. H3's duplicate-categoryIds residual is recorded in Open Items 6/7 as an accepted known-gap, not silently dropped.
 Hard stop conditions / safety constraints:
-- Do not route to or begin EXECUTE MODE until VALIDATE re-runs against this cycle-3 supplement and confirms Gate: PASS or an accepted CONDITIONAL.
-- Do not modify src/config/types.ts or src/registry/index.ts (settled T0 contracts) when closing G1/G2/G3 — the fixes stay T1-local (GridBuildOptions in grid.ts; resolveRoundContent + dispatchHostAction in session.ts, item 11a/L16; the INTENT_TOUCHED_KEYS table edit in intents.ts).
-- The grid content-resolution fix (G2, L16) must give `buildBoard` a real, non-placeholder channel to question content, proven by a real-content test assertion (item 13, AC#16) — not just a correct cell count — before this plan can PASS. G2 blocks Goal 1.
-- The generic-undo fix (F1, still closed and re-verified this cycle) must continue to guarantee one host action = one undo() call, covering both the 2-intent onSelect() batch and the 3-intent resolveAnswer() batch.
-Next phase: VALIDATE (vc-validate-agent), re-run from V1 against this cycle-3-supplemented plan — PVL cycle 3.
-Validate contract: inline in plan, this section (process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_PLAN_24-08-26.md).
-Execute start: BLOCKED — not applicable until Gate reads PASS or an accepted CONDITIONAL. Once unblocked: `npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`; high-risk pack: no (no auth/billing/schema/migration/public-API/deploy surface — host token is a local-LAN session secret, not user auth).
+- Do not modify src/config/types.ts or src/registry/index.ts (settled T0 contracts) — L17's board-delivery fix stays T1-local (broadcast.ts/broadcast.test.ts, item 17/17a) and uses only already-exported types (StylePlugin, BoardModel, resolve), per H1's own "no protected-file edit required" finding.
+- broadcastState's 'stage'/'player' board payload must never carry a real question prompt in any cell's label — only String(pointLadder[cell.row]) — this is the gameplay-integrity requirement H1 raised; do not silently pass buildBoard's raw output straight to those two channels.
+- The generic-undo fix (L2a, F1) and the grid content-resolution fix (L16, G2) must continue to hold unchanged — H1's fix only adds a delivery step downstream of both, it does not touch either.
+Next phase: EXECUTE (vc-execute-agent) — authorized directly from this cycle-5 supplement per explicit user sign-off; no further VALIDATE cycle is scheduled.
+Validate contract: inline in plan, this section is the cycle-4 record (process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_PLAN_24-08-26.md, ## Validate Contract) — H1/H2/H3 are addressed by this cycle-5 supplement above the contract section, not by a re-run contract.
+Execute start: `npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`; high-risk pack: no (no auth/billing/schema/migration/public-API/deploy surface — host token is a local-LAN session secret, not user auth).
 ```
