@@ -1588,3 +1588,91 @@ Next phase: EXECUTE (vc-execute-agent) — authorized directly from this cycle-5
 Validate contract: inline in plan, this section is the cycle-4 record (process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_PLAN_24-08-26.md, ## Validate Contract) — H1/H2/H3 are addressed by this cycle-5 supplement above the contract section, not by a re-run contract.
 Execute start: `npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`; high-risk pack: no (no auth/billing/schema/migration/public-API/deploy surface — host token is a local-LAN session secret, not user auth).
 ```
+
+---
+
+## Execution Status (EXECUTE pass, 24-08-26)
+
+Full report: `gameshow-engine_REPORT_24-08-26.md` (same folder).
+
+| Sub-phase | Items | Status |
+|---|---|---|
+| 0 — validateConfigPlugins coverage | 1, 2 | DONE |
+| 1 — phase machine | 3, 4, 5 | DONE |
+| 2 — intents / log / undo / session | 6, 7, 8, 9, 10, 11, 11a | DONE |
+| 3 — grid + flat | 12, 13, 14, 15, 16 | DONE |
+| 4 — broadcast + local transport | 17, 17a, 18, 19, 20 | DONE |
+| 5 — stage view | 21, 22 | DONE (item 23 manual gate NOT done) |
+| 6 — host controller | 24, 25 | DONE (item 26 manual gate partially done) |
+| 7 — integration entrypoint | 27, 27a, 27b, 28, 29 | DONE |
+| 8 — cross-cutting gates | 30, 31, 32, 33, 34 | DONE |
+| Test Plan extra | `host-manual-round.test.ts` | DONE |
+
+Gate command (item 34) run from a clean `dist/`, exit 0:
+`npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`
+— 12 test files pass, typecheck clean, isolation clean, build clean.
+
+Additional runtime evidence beyond the plan's gates: a full round played over
+HTTP against the built bundles, including one-press undo of a 3-intent action
+(score + consumption + phase all restored, log grew 6 → 7), pause/resume,
+401 on missing and forged tokens, and 403 on both path-traversal variants.
+
+**Protected files: `git diff` empty for `src/registry/index.ts`,
+`src/config/types.ts`, `src/config/resolve.ts`, `src/config/defaults.ts`,
+`presets/school-assembly.ts`. Zero new runtime dependencies (`vite` is a
+devDependency).**
+
+## Deviations (EXECUTE pass, 24-08-26)
+
+All within blast radius. No hard-stop class deviation occurred. Full rationale
+for each is in `gameshow-engine_REPORT_24-08-26.md` §"Where The Plan Was Wrong".
+
+1. **Item 17a(d) / AC#17 vs item 17 / L9 / L17** — "no payload on ANY channel
+   contains `answer`…" is unimplementable; the host must receive the answer key
+   to adjudicate, as items 17/L9/L17 all state. Built AC#7's narrower and
+   correct rule (stage + player only), and additionally asserted the host DOES
+   carry the answer so the split is proven deliberate.
+2. **`state.config` leaks every answer** — the plan's "state view" for stage
+   would have shipped `content.banks` (every question AND answer) to the
+   projector. `broadcast.ts` strips `content.banks` for stage/player;
+   `broadcast.test.ts` scans the serialised payload by sentinel VALUE, not by
+   key name (a key scan trips on the config's legitimate `copy.answer`).
+3. **`ReadonlySet` does not survive `JSON.stringify`** — `consumed` and
+   `lockedOutTeamIds` would have arrived as `{}`. The payload is an explicit
+   JSON-safe view; both travel as arrays.
+4. **Item 12's `cells[].consumed`** cannot be computed in `buildBoard` (no
+   `state` — deferred gap D3(ii), left open as instructed). Derived in
+   `broadcastState`, the one place that has state.
+5. **Item 18's literal `path.resolve(staticDir, url)`** would 403 every asset
+   (an absolute second argument wins). Leading slashes are stripped before
+   resolve; the containment check itself is unchanged and still refuses both
+   traversal variants.
+6. **Item 10(b) "undo `depth` times"** is impossible under L3 (each undo appends
+   a reversal that consumes a window slot). The test undoes until refusal and
+   asserts what the item actually asks: bounded reach, and the (N-depth)th event
+   never reached.
+7. Smaller: item 1(a)/AC#5's "registered alternatives" is not what
+   `validateConfigPlugins` emits (would need a protected-file edit — the plan
+   admits this in item 27 but never updated item 1); item 1's "fake
+   `RegistryKind`" cannot satisfy case (c), so unique `vcp-test-` keys under
+   real kinds were used; L1's exercised path lists `adjudicate`, but item 25's
+   button list and item 10(e)'s locked 3-intent shape make it
+   reachable-but-unexercised in T1.
+
+### Decisions the plan left open (documented, not accidental)
+
+`layout: 'classic'` registered in `bootstrap.ts` (otherwise preflight rejects
+every config and `npm run show` can never start) · `availableQuestionIds` added
+to the payload (the host has a payload, not a `SessionState`) · SSE retained
+frame per channel (otherwise a projector opened mid-show stays blank) ·
+`next`/`endRound` split so `server.ts` never builds a board (L17) ·
+`STATIC_ALIASES` reconciling Vite's output paths with item 28's printed URLs ·
+`resolvedQuestionSec` follows the full cascade so engine and on-screen countdown
+cannot disagree · a short category yields fewer tiles rather than throwing.
+
+### New known gap
+
+**T1 plays ROUND 1 only.** No `Intent` variant touches `roundIndex`, so round
+progression is impossible without a contract change. `demo-t1.ts` authors two
+rounds (per item 27b) and documents this. Consequence of the settled `Intent`
+union, not an implementation shortcut — belongs in the T2 SPEC.

@@ -1,0 +1,210 @@
+/**
+ * Event log + generic undo — PLAN Sub-Phase 2 (item 10), SPEC AC#6.
+ *
+ * Cases (d) and (e) are the ones that matter most: they prove undo works at
+ * HOST-ACTION granularity (Design Lock L2a). A host who presses "mark correct"
+ * performs ONE action that happens to be three intents; pressing undo once must
+ * put the room back exactly where it was, not two-thirds of the way.
+ */
+
+import assert from 'node:assert/strict'
+import { applyIntentsWithLog, undo } from './log'
+import { resolveConfig } from '../config/resolve'
+import type { GameEvent, Intent, Phase, SessionState } from '../registry/index'
+import type { GameShowConfig, Round } from '../config/types'
+
+const ROUND: Round = {
+  id: 'r1',
+  title: 'Round 1',
+  bankId: 'bank',
+  style: {
+    kind: 'grid', columns: 1, rows: 1, pointLadder: [100],
+    selection: 'freePick', showCategoryHeaders: true,
+    consumedStyle: 'dim', dramaticCategoryReveal: false,
+  },
+}
+
+const CONFIG: GameShowConfig = (() => {
+  const base = resolveConfig({ meta: { id: 'log', title: 'Log' } })
+  return {
+    ...base,
+    program: { ...base.program, rounds: [ROUND] },
+    content: {
+      banks: [{
+        id: 'bank', title: 'Bank',
+        categories: [{
+          id: 'cat', title: 'Cat',
+          questions: [{ id: 'q1', kind: 'text', prompt: 'P1', answer: 'A1', points: 100 }],
+        }],
+      }],
+    },
+  }
+})()
+
+const START_SCORE = 10
+
+function makeState(phase: Phase = 'board'): SessionState {
+  return {
+    id: 'session',
+    joinCode: '000000',
+    config: CONFIG,
+    phase,
+    roundIndex: 0,
+    currentQuestionId: null,
+    consumed: new Set<string>(),
+    teams: [
+      { id: 'a', name: 'A', color: '#f00', score: START_SCORE, streak: 0, lifelinesUsed: {}, eliminated: false },
+    ],
+    players: [],
+    buzzes: [],
+    turnTeamId: null,
+    attemptsUsed: 0,
+    lockedOutTeamIds: new Set<string>(),
+    clockStartedAt: null,
+    log: [],
+  }
+}
+
+function reversedSeqs(log: readonly GameEvent[]): Set<number> {
+  const seqs = new Set<number>()
+  for (const event of log) {
+    const target = event.payload['reversalOf']
+    if (typeof target === 'number') seqs.add(target)
+  }
+  return seqs
+}
+
+const DEPTH = 50
+
+// --- (a) single-intent action: undo restores, log grows -------------------
+{
+  const before = makeState()
+  const applied = applyIntentsWithLog(
+    before,
+    [{ type: 'awardPoints', teamId: 'a', delta: 100, reason: 'correct answer' }],
+    1, Date.now(),
+  )
+  assert.equal(applied.state.teams[0]?.score, START_SCORE + 100, 'the award applied')
+  assert.equal(applied.state.log.length, 1, 'one host action produced one event')
+
+  const result = undo(applied.state, DEPTH)
+  assert.equal(result.undone, true, 'the award was undone')
+  assert.equal(result.state.teams[0]?.score, START_SCORE, 'the score is back to its pre-award value')
+  assert.equal(result.state.log.length, 2, 'log grows to 2 (original + reversal), never shrinks to 1')
+  assert.equal(result.state.log[0], applied.state.log[0], 'the original event is untouched')
+  assert.equal(result.state.log[1]?.payload['reversalOf'], 1, 'the reversal names what it reversed')
+  assert.equal(result.state.log[1]?.name, applied.event.name, 'the reversal reuses the original event name')
+}
+
+// --- (b) depth bounds how far back undo can reach -------------------------
+{
+  const EVENT_COUNT = 10
+  const SMALL_DEPTH = 5
+  const OUT_OF_REACH_SEQ = EVENT_COUNT - SMALL_DEPTH   // the (N-depth)th event, 1-indexed
+
+  let state = makeState()
+  for (let seq = 1; seq <= EVENT_COUNT; seq++) {
+    state = applyIntentsWithLog(
+      state,
+      [{ type: 'awardPoints', teamId: 'a', delta: 1, reason: `award ${seq}` }],
+      seq, Date.now(),
+    ).state
+  }
+  assert.equal(state.log.length, EVENT_COUNT, 'N events logged')
+
+  // Undo until it refuses. Every undo APPENDS a reversal (L3), so reversals
+  // themselves consume window slots — the reachable count is bounded well
+  // below N, which is exactly the property being asserted.
+  const MAX_ATTEMPTS = EVENT_COUNT * 2
+  let successes = 0
+  let refused = false
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const result = undo(state, SMALL_DEPTH)
+    state = result.state
+    if (!result.undone) { refused = true; break }
+    successes++
+  }
+  assert.equal(refused, true, 'undo eventually refuses rather than walking the whole log')
+  assert.ok(successes >= 1, 'at least one undo succeeded')
+  assert.ok(successes < SMALL_DEPTH, `undo reach is bounded by depth (${successes} < ${SMALL_DEPTH})`)
+
+  const reversed = reversedSeqs(state.log)
+  assert.equal(
+    reversed.has(OUT_OF_REACH_SEQ), false,
+    `the (N-depth)th event (seq ${OUT_OF_REACH_SEQ}) is never reachable by undo`,
+  )
+  assert.equal(reversed.has(1), false, 'the very first event is never reachable by undo')
+  assert.equal(undo(state, SMALL_DEPTH).undone, false, 'a further attempt is a no-op, not an error')
+}
+
+// --- (c) undo on an empty log is a no-op ----------------------------------
+{
+  const state = makeState()
+  const result = undo(state, DEPTH)
+  assert.equal(result.undone, false, 'nothing to undo')
+  assert.equal(result.state, state, 'state is returned untouched')
+}
+
+// --- (d) 2-intent host action (grid.onSelect shape) ------------------------
+{
+  const before = makeState('board')
+  const batch: Intent[] = [
+    { type: 'selectQuestion', questionId: 'q1' },
+    { type: 'setPhase', phase: 'reading' },
+  ]
+  const applied = applyIntentsWithLog(before, batch, 1, Date.now())
+  assert.equal(applied.state.currentQuestionId, 'q1', 'the question was selected')
+  assert.equal(applied.state.phase, 'reading', 'the phase advanced')
+  assert.equal(applied.state.log.length, 1, 'a 2-intent host action logs ONE event, not two')
+
+  const result = undo(applied.state, DEPTH)
+  assert.equal(result.undone, true, 'the host action was undone')
+  assert.equal(result.state.currentQuestionId, null, 'currentQuestionId restored by the same single undo')
+  assert.equal(result.state.phase, 'board', 'phase restored by the same single undo')
+  assert.equal(result.state.log.length, 2, 'log is 2 (one batched action + one reversal), never 3')
+}
+
+// --- (e) 3-intent host action (resolveAnswer shape) ------------------------
+{
+  const before = makeState('armed')
+  const batch: Intent[] = [
+    { type: 'awardPoints', teamId: 'a', delta: 200, reason: 'correct answer' },
+    { type: 'consumeQuestion', questionId: 'q1' },
+    { type: 'setPhase', phase: 'reveal' },
+  ]
+  const applied = applyIntentsWithLog(before, batch, 1, Date.now())
+  assert.equal(applied.state.teams[0]?.score, START_SCORE + 200, 'the award applied')
+  assert.equal(applied.state.consumed.has('q1'), true, 'the question was consumed')
+  assert.equal(applied.state.phase, 'reveal', 'the phase advanced')
+  assert.equal(applied.state.log.length, 1, 'a 3-intent host action logs ONE event, not three')
+
+  const result = undo(applied.state, DEPTH)
+  assert.equal(result.undone, true, 'the host action was undone')
+  assert.equal(result.state.teams[0]?.score, START_SCORE, 'score restored by ONE undo')
+  assert.equal(result.state.consumed.has('q1'), false, 'consumed restored by the same undo')
+  assert.equal(result.state.consumed.size, 0, 'the consumed set is the pre-batch set, not a patched copy')
+  assert.equal(result.state.phase, 'armed', 'phase restored by the same undo')
+  assert.equal(result.state.log.length, 2, 'log is 2 (one batched action + one reversal), never 4')
+}
+
+// --- the batch payload keeps the full ordered intent list for audit -------
+{
+  const batch: Intent[] = [
+    { type: 'awardPoints', teamId: 'a', delta: 50, reason: 'correct answer' },
+    { type: 'consumeQuestion', questionId: 'q1' },
+    { type: 'setPhase', phase: 'reveal' },
+  ]
+  const applied = applyIntentsWithLog(makeState('armed'), batch, 7, 12_345)
+  assert.equal(applied.event.seq, 7, 'the caller-supplied seq is used verbatim')
+  assert.equal(applied.event.at, 12_345, 'the caller-supplied timestamp is used verbatim')
+  assert.deepEqual(
+    applied.event.payload['intents'], batch,
+    'every intent in the action is recorded in order for dispute audit',
+  )
+  assert.notEqual(
+    (applied.event.payload['intents'] as Intent[])[0], batch[0],
+    'logged intents are copies, so a later caller mutation cannot rewrite history',
+  )
+}
+
+console.log('✓ event log + undo: all checks passed')

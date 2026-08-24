@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "presets/**/*"]
+  "include": ["src/**/*", "presets/**/*", "vite.config.ts"]
 }
