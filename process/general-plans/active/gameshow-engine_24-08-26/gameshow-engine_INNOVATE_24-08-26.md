@@ -82,6 +82,22 @@ now is premature — no persistence driver exists yet (`runtime.persistence.driv
 contradicts the `log` field's own unbounded type (`readonly GameEvent[]`,
 `src/registry/index.ts:43`).
 
+**Correction (PVL supplement, 24-08-26):** VALIDATE (PLAN's first-pass
+review) found that the generic inverse-patch mechanism as originally
+specified operates per-`Intent`, not per-host-action — a single host
+action (e.g. selecting a question, marking an answer) can produce 2-3
+`Intent`s, so one `undo()` call was only reversing the last of them. The
+"Undo — TRUE" verdict above is corrected to: **undo is one-action TRUE
+at the HOST-ACTION granularity**, not the `Intent` granularity the
+original mechanism implemented. The fix (`log.ts`'s `applyIntentsWithLog`,
+Design Lock L2a in the PLAN) batches a whole host action's `Intent[]`
+into ONE `GameEvent` before logging, so `undo()`'s own per-event
+reversal logic — unchanged from what's described above — now correctly
+reverses one host action per call. No change to the chosen approach
+(generic diff-based inverse patch, unbounded log) or to the rejected
+alternatives above; this correction is scoped entirely to the dispatch
+granularity, not the mechanism.
+
 ---
 
 ## D3 — Turn Ownership: engine owns transitions + generic turn config; style owns board/selectability
