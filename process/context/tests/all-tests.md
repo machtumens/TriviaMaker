@@ -7,7 +7,7 @@ date: 24-08-26
 ---
 # TriviaMaker Engine - All Tests
 
-Last updated: 2026-08-24 (T1 engine core landed — 12 test files, new gate sequence, manual gates added)
+Last updated: 2026-08-27 (T2.1 contract revision — same 12 files, new test blocks for styleState/setStyleState/advanceRound; 1 new Hybrid-tier gate added)
 
 Attach this file first when the task involves testing, verification, or test debugging.
 
@@ -89,7 +89,7 @@ rm -rf dist && npm run typecheck && npm test \
 All four steps must exit 0. This is the plan's own Sub-Phase 8 gate and the exact command
 the T1 execute report and the independent EVL confirmation run both used.
 
-## Test File Map (12 files, T1 landed 2026-08-24)
+## Test File Map (12 files — same count since T1; T2.1 added blocks within existing files, not new files)
 
 | Area | File | What it proves |
 |---|---|---|
@@ -97,13 +97,13 @@ the T1 execute report and the independent EVL confirmation run both used.
 | Plugin preflight | `src/registry/validateConfigPlugins.test.ts` | unregistered-plugin-key errors are specific, name alternatives |
 | T1 bootstrap | `src/registry/bootstrap.test.ts` | T1 plugin set registers cleanly; `validateConfigPluginsT1` preflight |
 | Phase machine | `src/engine/phase.test.ts` | phase transition table correctness |
-| Intents | `src/engine/intents.test.ts` | `applyIntent` behaviour per `Intent` variant |
-| Event log + undo | `src/engine/log.test.ts` | batch-union snapshot (L2a), reversal-without-deletion, depth bounding, empty-log no-op, 2/3-intent host-action batches |
-| Session | `src/engine/session.test.ts` | `dispatchHostAction`, `resolveRoundContent` |
-| Broadcast/redaction | `src/engine/broadcast.test.ts` | per-channel redaction by VALUE (not key name), Set→array serialisation, derived `cells[].consumed` |
-| Integration | `src/engine/host-manual-round.test.ts` | a full host-manual round through phase+intents+log+session together |
-| Style plugin | `src/styles/grid.test.ts` | `grid.buildBoard`, `availableQuestions` |
-| Scoring plugin | `src/scoring/flat.test.ts` | pure `ScoreDelta[]` output, no `-0` regression |
+| Intents | `src/engine/intents.test.ts` | `applyIntent` behaviour per `Intent` variant. **T2.1**: `setStyleState`/`advanceRound` cases added; `EXPECTED` union-completeness list (checked against `INTENT_TOUCHED_KEYS`) extended — this is the guard that caught the plan's own missing `EXPECTED` entries (Plan Deviation #3) |
+| Event log + undo | `src/engine/log.test.ts` | batch-union snapshot (L2a), reversal-without-deletion, depth bounding, empty-log no-op, 2/3-intent host-action batches. **T2.1** blocks (f)/(g): a `setStyleState` batch fully reversed by one `undo()`; an `advanceRound` batch reversing BOTH `roundIndex` AND `styleState` in one `undo()` — the first two-key `INTENT_TOUCHED_KEYS` row in the codebase |
+| Session | `src/engine/session.test.ts` | `dispatchHostAction`, `resolveRoundContent`. **T2.1**: +1 assertion that `createSession`'s returned `SessionState.styleState` is `{}` |
+| Broadcast/redaction | `src/engine/broadcast.test.ts` | per-channel redaction by VALUE (not key name), Set→array serialisation, derived `cells[].consumed`. **T2.1**: `styleState` JSON round-trip (nested array + nested object, deep-equal after `JSON.parse(JSON.stringify(...))`); a control assertion proving a `Set` collapses to `{}`; re-run of the value-based sentinel leak scan with a populated `styleState`. Fixture `buildBoard` also gained `meta: { pointLadder }` — required after the D3 fix moved `pointLadder`'s source of truth to `board.meta` (see Plan Deviations #2 in the T2.1 execute report) |
+| Integration | `src/engine/host-manual-round.test.ts` | a full host-manual round through phase+intents+log+session together. **T2.1**: its `gridStyle.buildBoard` call site gained the required 3rd `state` argument (Plan Deviation #1 — the plan wrongly called this file VERIFY-ONLY) |
+| Style plugin | `src/styles/grid.test.ts` | `grid.buildBoard`, `availableQuestions`. **T2.1**: both `buildBoard` call sites gained a 3rd argument |
+| Scoring plugin | `src/scoring/flat.test.ts` | pure `ScoreDelta[]` output, no `-0` regression. **T2.1**: hand-built `SessionState` literal gained `styleState: {}` |
 | Transport | `src/transport/local.test.ts` | host-token 401s, path-traversal 403s, SSE retained-frame-on-connect |
 
 ## Testing Approach
@@ -168,6 +168,10 @@ next UPDATE PROCESS pass, not a settled "never migrate" decision.
   path-traversal encodings (literal `../` and `%2e%2e`) — `fetch`/WHATWG-URL silently
   normalises the literal form client-side, so a traversal test built on `fetch` can pass
   without the server's containment check ever being exercised. Use raw `node:http` requests.
+- **`styleState` JSON-safety (new since T2.1).** Any value stored in `SessionState.styleState`
+  must survive `JSON.parse(JSON.stringify(...))` unchanged. `Set`/`Map` silently collapse to
+  `{}` — confirmed by `broadcast.test.ts`'s control assertion. This is not a hypothetical: a
+  `ReadonlySet` shipped in exactly this position once already in T1.
 
 ## Manual Gates (never satisfied by an automated test — human confirmation required)
 
@@ -181,6 +185,7 @@ the phase report — an agent judgment call alone does not satisfy these rows."*
 | Projector legibility from the back of a room | NOT DONE | Run the stage view on a real external display, read from the back row |
 | Host token requirement visibly confirmed via a browser DevTools network tab | PARTIALLY DONE — raw-HTTP 401 confirmed for both missing and forged tokens | Open the host controller in a browser, inspect the actual network request in DevTools |
 | Full pre-show dry run on the real venue network (SPEC AC#11) | NOT DONE | Run a complete show end-to-end on the actual venue LAN before a live event |
+| `INTENT_EVENT_NAMES` diff review — is `setStyleState → phase.changed` an acceptable 7th fallback? (T2.1, T2 SPEC AC#12) | NOT DONE — numbers computed and independently confirmed twice (19 members, unreachable 12→11, fallbacks 6→7); the judgment call itself is not agent-resolvable | A human reviewer reads the `INTENT_EVENT_NAMES` diff and records sign-off in the phase report |
 
 A plan/phase with any of these still open is `Keep in active/testing`, not archivable — see
 `planning/all-planning.md`.
@@ -200,3 +205,23 @@ A plan/phase with any of these still open is `Keep in active/testing`, not archi
 - **`applyIntentsWithLog([])` (empty-batch path) is untested.** Confirmed unreachable from
   any live `server.ts` command during T1; non-blocking, but a `log.test.ts` case for it is a
   cheap follow-up.
+- **No test asserts `withPointValueLabels`'s input contract (new since T2.1).** A style that
+  forgets `board.meta.pointLadder` fails SILENTLY (blank audience labels) rather than loudly.
+  Reproduced by both the T2.1 execute-agent and EVL. Recommended follow-up: a guard test or
+  runtime warning, not required to close T2.1.
+- **No mechanical enumeration guard for `INTENT_EVENT_NAMES` (new since T2.1).**
+  `INTENT_TOUCHED_KEYS` has one (`intents.test.ts`'s `EXPECTED` list) and it caught a real
+  omission this session (Plan Deviation #3). `INTENT_EVENT_NAMES` relies on
+  `Record<Intent['type'], GameEventName>` alone, which proves completeness but not intent — a
+  wrong-but-valid event name is invisible to any test.
+- **No fixture-level guard that every `StylePlugin` implementation is exercised through the
+  real 3-arg contract (new since T2.1).** TypeScript accepts a `buildBoard` implementation
+  with fewer parameters than the interface declares, so `broadcast.test.ts`'s `fixtureStyle`
+  silently type-checked through the T2.1 signature change — only its runtime consequence
+  (blank `pointLadder`) surfaced, and only because an unrelated assertion happened to cover
+  it.
+- **`setStyleState` reference-adoption corruption path is reproduced but not test-guarded
+  (new since T2.1).** `applyIntent` assigns `intent.nextStyleState` directly — a caller that
+  retains and mutates the object after dispatch corrupts both live state and the logged undo
+  entry. See `all-context.md` Known risks. Recommended follow-up: a defensive-clone change
+  plus a regression test for the corruption path itself.

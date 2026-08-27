@@ -108,7 +108,7 @@ a live host action, that is scope drift — stop and flag it.
 | **T2.1-L3 — `buildBoard`'s third parameter is unused by `grid` in T2.1** | `grid.ts`'s `buildBoard` gains a `_state: SessionState` parameter (underscore-prefixed, matching the file's existing convention for `onResolved`'s unused params) purely for interface compliance. Grid does not need per-cell derived data in T2.1 — this is a capability T2.3 styles will use, not one T2.1 exercises. `isRoundComplete` needs no signature change (already receives `state`; unaffected). |
 | **T2.1-L4 — `advanceRound`/`setStyleState` are proven mechanically, not wired live** | Both new `Intent` variants are tested by dispatching them directly through `applyIntent`/`applyIntentsWithLog`/`dispatchHostAction` in test code — never by an actual host-action call site in `session.ts` or `server.ts`. Wiring `advanceRound` into a real round-complete flow is T2.2. See Scope, Out of scope. |
 | **T2.1-L5 — Defect D3's fix retires the cast without a replacement cast on `StyleConfig`** | `broadcast.ts`'s `const gridConfig = round.style as GridStyle` is deleted entirely. The options spread becomes `{ ...round.style, categories }` (type-checks against `StylePlugin`'s default `O = Record<string, unknown>` with no cast — `resolve<StylePlugin>('style', ...)` is called without a type parameter, same as today). The `pointLadder` read becomes a runtime-checked narrow off `hostBoard.meta` (`Array.isArray(...) ? ... as number[] : []`), not a blind assertion — `board.meta` is declared `Record<string, unknown>` by design (`registry/index.ts` `BoardModel.meta`), so *some* narrowing is unavoidable when reading a specific key out of it. This narrow stays grid-specific (`withPointValueLabels` keeps assuming a `pointLadder`-shaped `meta`) — generalising board redaction across styles is explicitly T2.3 scope, not fixed here. See INNOVATE Defect D3. |
-| **T2.1-L6 — `GameEventName` accounting reported as mixed, not improved** | `advanceRound → 'round.started'` (exact match, previously-unreachable member now reachable: 11→10 unreachable). `setStyleState → 'phase.changed'` (a genuine NEW 7th fallback: 6→7 fallbacks). Both numbers must appear together in the phase report — reporting only the favorable one is a protocol violation of SPEC AC#12. See INNOVATE Defect D5. |
+| **T2.1-L6 — `GameEventName` accounting reported as mixed, not improved** | `advanceRound → 'round.started'` (exact match, previously-unreachable member now reachable: ~~11→10~~ **CORRECTED 27-08-26 (UPDATE PROCESS, source: EVL confirmation report `gameshow-engine-t2-evl-iteration-001_REPORT_27-08-26.md`, independently recomputed by both execute-agent and EVL): `GameEventName` has 19 members total; reachable 7→8, unreachable 12→11.** `setStyleState → 'phase.changed'` (a genuine NEW 7th fallback: 6→7 fallbacks — this figure was correct as originally stated). Both numbers must appear together in the phase report — reporting only the favorable one is a protocol violation of SPEC AC#12. See INNOVATE Defect D5. |
 | **T2.1-L7 — Five existing test files gain one field each, no other changes** | `src/engine/broadcast.test.ts`, `src/engine/intents.test.ts`, `src/engine/log.test.ts`, `src/scoring/flat.test.ts`, `src/styles/grid.test.ts` each hand-build one `SessionState` object literal (orchestrator-verified, one site each). Each needs exactly `styleState: {}` added next to its existing `log: []` field — no other change to these files is in scope for T2.1 (e.g. do not add new assertions to `grid.test.ts` about `selection` — that is Defect D1, T2.3). |
 
 ---
@@ -241,7 +241,9 @@ future style author violating the discipline requirement.
    - `setStyleState: 'phase.changed', // new fallback (T2.1) — no exact
      GameEventName for opaque style writes`
    - `advanceRound: 'round.started', // exact match (T2.1) — closes one of
-     T1's 11 unreachable GameEventName members`
+     T1's 12 unreachable GameEventName members`
+   *(CORRECTED 27-08-26, UPDATE PROCESS: the plan originally said "11 unreachable"; the
+   verified baseline is 12 — see T2.1-L6 correction above and Open Item 6 correction below.)*
    Do not remove or alter any existing entry — this is purely additive.
 
 ### Section D — Session construction (`src/engine/session.ts`)
@@ -397,7 +399,9 @@ test("a full T1-shaped host-manual round (host-manual-round.test.ts) still compl
    `roundIndex`/`styleState` for `advanceRound` — L2a's batch-union undo
    correctly reverses both. (Items 4, 18.)
 5. `INTENT_EVENT_NAMES` maps both new intents, with the accounting reported
-   as mixed (T2.1-L6), not spun as improvement. (Item 6.)
+   as mixed (T2.1-L6), not spun as improvement. (Item 6.) *(Numeric baseline
+   corrected 27-08-26 at UPDATE PROCESS — see T2.1-L6 above: 19 members
+   total, unreachable 12→11, fallbacks 6→7.)*
 6. `createSession` initializes `styleState: {}`. (Item 7.)
 7. `broadcast.ts` contains zero `as GridStyle` occurrences; `pointLadder` is
    read via a runtime-checked narrow off `board.meta`, not a blind cast.
@@ -474,9 +478,12 @@ test("a full T1-shaped host-manual round (host-manual-round.test.ts) still compl
    that needs client-visible per-style state should add this field then,
    with its own redaction consideration at that time (see Open Item 2).
 6. **`GameEventName`'s fallback count now stands at 7 (was 6), unreachable
-   count now stands at 10 (was 11).** Both numbers must be carried into the
-   T2.1 phase report per T2.1-L6 — reporting only the favorable number is a
-   protocol violation of T2 SPEC AC#12.
+   count now stands at ~~10 (was 11)~~ CORRECTED 27-08-26 (UPDATE PROCESS,
+   source: EVL confirmation report, independently recomputed twice): 19
+   members total, unreachable now stands at 11 (was 12), reachable now
+   stands at 8 (was 7).** Both numbers must be carried into the T2.1 phase
+   report per T2.1-L6 — reporting only the favorable number is a protocol
+   violation of T2 SPEC AC#12.
 
 ---
 

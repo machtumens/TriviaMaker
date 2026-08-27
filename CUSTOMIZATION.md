@@ -123,6 +123,88 @@ should fail in the green room, not on stage.
 
 ---
 
+## Writing a style plugin
+
+*(Added 27-08-26, post-T2.1. Reference this before authoring `list`/`trivia`/
+`wheel`/`tictac`/`hangman` — the T2.3 backlog.)*
+
+The `StylePlugin<O>` interface, as of the T2.1 contract revision
+(`src/registry/index.ts`):
+
+```ts
+export interface StylePlugin<O = Record<string, unknown>> {
+  key: RegistryKey
+  buildBoard(round: Round, options: O, state: SessionState): BoardModel
+  availableQuestions(state: SessionState, board: BoardModel): string[]
+  onSelect(state: SessionState, questionId: string): Intent[]
+  onResolved(state: SessionState, correct: boolean): Intent[]
+  isRoundComplete(state: SessionState, board: BoardModel): boolean
+  stageComponent: string
+  hostComponent: string
+}
+```
+
+`buildBoard`'s third parameter, `state: SessionState`, was added in T2.1. It is
+READ-ONLY context (notably `state.styleState`) for styles that need to derive
+per-cell data from live session state — a style that doesn't need this (like
+`grid`) still must accept the parameter for interface compliance, even unused
+(convention: name it `_state`).
+
+### The `board.meta.pointLadder` obligation (REQUIRED — silent-failure trap)
+
+**If your style wants audience-visible point-value labels, `buildBoard` MUST
+publish `pointLadder` into the returned `BoardModel.meta`.** As of T2.1,
+`pointLadder` is read by `broadcast.ts`'s `withPointValueLabels` off
+`board.meta.pointLadder`, not off the round's style config. Look at
+`gridStyle.buildBoard` in `src/styles/grid.ts` for the pattern — its `meta`
+object includes `pointLadder: options.pointLadder` alongside the other
+board-level fields.
+
+**Consequence of omitting it: audience point-value labels go blank SILENTLY.**
+No error, no warning — `withPointValueLabels` just renders empty strings. This
+is not hypothetical: T2.1's own EVL confirmation run reproduced it by
+registering a deliberately non-compliant style. There is currently no
+automated guard for this (see T2.1 Test Infra Gaps) — get it right by hand.
+
+### `styleState`: JSON-safe values only
+
+`SessionState.styleState: Record<string, unknown>` is your style's opaque
+scratch space. Contents MUST be JSON-safe — plain objects, arrays, strings,
+numbers, booleans, `null`. **Never a `Set` or a `Map`.** `broadcast.ts`
+explicitly converts `styleState` for the wire, and a `Set`/`Map` silently
+collapses to `{}` on serialisation — confirmed by T2.1's EVL run. This exact
+class of bug already shipped once in T1 (a `ReadonlySet` stored where a
+JSON-safe value was required). If your style needs set/map-like semantics,
+store an array or a plain keyed object instead and reconstruct the richer
+shape in memory where you read it.
+
+### How a style writes state — the `setStyleState` intent, never mutation
+
+Styles never mutate `state.styleState` directly. Return a `setStyleState`
+intent from `onSelect`/`onResolved`:
+
+```ts
+onResolved(state, correct) {
+  return [{ type: 'setStyleState', nextStyleState: { ...state.styleState, revealedCount: n } }]
+}
+```
+
+This keeps one host action reversible by one `undo()` press (Design Lock L2a
+from T1) — a direct mutation is invisible to the snapshot-diff undo in
+`log.ts` and breaks that guarantee silently.
+
+### Caveat: `setStyleState` adopts your object by reference
+
+`applyIntent` assigns `intent.nextStyleState` directly into `state.styleState`,
+and the same object reference is also retained in the undo log's audit entry.
+**Do not retain and later mutate an object you have already dispatched** — if
+you do, you corrupt both live state and the logged audit record at once (T2.1
+EVL reproduced this corruption path). Always hand over a freshly-built object
+(e.g. spread `{ ...state.styleState, ... }` into a new object each time, as
+shown above) rather than reusing and mutating a held reference.
+
+---
+
 ## Layer 4 — Intents, not mutations
 
 Plugins receive read-only `SessionState` and return `Intent[]`. They never mutate.
@@ -214,7 +296,7 @@ a scoreboard LED wall, whatever.
 
 ---
 
-## Four invariants worth not breaking
+## Five invariants worth not breaking
 
 1. **The stage view stays playable with zero players connected.**
    (`runtime.degradeToOfflineOnNetworkLoss`) Venue wifi fails. The show continues
@@ -225,6 +307,18 @@ a scoreboard LED wall, whatever.
    mutate the live board.
 3. **Scoring plugins are pure.** Impurity breaks undo silently.
 4. **Answers are redacted at the transport boundary**, not in the view layer.
+5. **`styleState` is server-only; it does not go on the wire.** *(Locked
+   27-08-26, post-T2.1 EVL.)* `styleState` appears nowhere in
+   `src/engine/broadcast.ts` — style-derived data reaches clients only via
+   `board.meta`/`board.cells[].meta`, which `buildBoard` constructs and
+   `broadcastState` redacts. This is deliberate, not an oversight or a gap to
+   "complete" later: because `styleState` never reaches the wire,
+   answer-adjacent intermediates a style might compute (e.g. hangman's
+   masked-label computation) structurally cannot leak to the projector. **Do
+   not add `styleState` to `BroadcastPayload`.** If a client genuinely needs
+   some piece of style state, project the specific value through
+   `board.meta` (with the same redaction discipline as everything else on
+   that path) — do not widen the payload to carry the whole opaque bag.
 
 ---
 

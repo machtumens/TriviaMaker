@@ -60,3 +60,27 @@ four items outside a proper SPEC/PLAN pass, even for a single style plugin.
 Full detail and evidence: `process/general-plans/active/gameshow-engine_24-08-26/` —
 `gameshow-engine_PLAN_24-08-26.md` (Open Items 2, 5), `gameshow-engine_REPORT_24-08-26.md`
 ("Known Gaps Carried Forward"), `gameshow-engine_CLOSEOUT_24-08-26.md` (§6, §8).
+
+---
+
+## RESOLVED 2026-08-27 (T2.1 contract revision) — status update, not a rewrite
+
+All 4 gaps above landed as one coherent contract revision, per this note's own
+recommendation (design one richer context, not four separate patches). Resolution detail:
+
+1. **Persistent style-owned state** — RESOLVED: `SessionState.styleState`.
+2. **`buildBoard` doesn't receive `state`** — RESOLVED: required 3rd param.
+3. **No `Intent` touches `roundIndex`** — RESOLVED mechanically (`advanceRound` intent,
+   undo-safe), but **not yet wired to a live dispatch site** and currently **unbounded** —
+   see the new backlog note `gameshow-engine-t2.2-blockers.md` for what T2.2 must do before
+   using it.
+4. **`GameEventName` closed union** — PARTIALLY RESOLVED: one more previously-unreachable
+   member closed (`advanceRound → round.started`), one more fallback added (`setStyleState
+   → phase.changed`, pending Hybrid-tier human sign-off, T2 SPEC AC#12).
+
+One new obligation surfaced as a side effect of resolving gap 2, not predicted by this note:
+styles must now publish `board.meta.pointLadder` for audience point-value labels to render
+— see `CUSTOMIZATION.md` §Writing a style plugin.
+
+Full detail: `process/general-plans/active/gameshow-engine-t2_24-08-26/` — PLAN, EXECUTE
+report, EVL confirmation report, and `gameshow-engine-t2_CLOSEOUT_24-08-26.md`.

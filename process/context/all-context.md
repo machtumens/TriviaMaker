@@ -7,7 +7,7 @@ date: 24-08-26
 ---
 # TriviaMaker Engine - All Context
 
-Last updated: 2026-08-24 (T1 engine core landed — see Repository Structure / Outstanding Work below)
+Last updated: 2026-08-27 (T2.1 contract revision landed, WITH_GAPS — see Repository Structure / Outstanding Work below)
 
 This file is the root context entrypoint for the repo.
 
@@ -168,19 +168,29 @@ When durable project knowledge changes:
       resolve.ts             cascade merge, theme→CSS vars, host-only redaction (untouched by T1)
       resolve.test.ts        self-check for the cascade (node:assert, no framework)
     registry/
-      index.ts               12 plugin interfaces + registry + preflight validation (untouched by T1)
+      index.ts               12 plugin interfaces + registry + preflight validation -- T2.1 added
+                              `SessionState.styleState`, `Intent.setStyleState`/`advanceRound`,
+                              `StylePlugin.buildBoard`'s 3rd `state` param (exactly 3 edits, `src/config/types.ts` untouched)
       bootstrap.ts            registers the T1 plugin set (grid/flat/local/classic layout) + validateConfigPluginsT1 preflight
       bootstrap.test.ts
       validateConfigPlugins.test.ts
     engine/
       phase.ts / phase.test.ts        phase machine (lobby -> board -> reading -> armed -> locked -> adjudicate -> reveal -> ...)
-      intents.ts / intents.test.ts    Intent union + applyIntent -- plugins return intents, never mutate state
-      log.ts / log.test.ts            event log + generic host-action undo (batch-union snapshot, L2a)
-      session.ts / session.test.ts    dispatchHostAction, resolveRoundContent, session launch/snapshot
-      broadcast.ts / broadcast.test.ts  broadcastState -- the ONLY call site that redacts + serialises state per channel
+      intents.ts / intents.test.ts    Intent union + applyIntent -- plugins return intents, never mutate state.
+                                       T2.1: +setStyleState/advanceRound cases
+      log.ts / log.test.ts            event log + generic host-action undo (batch-union snapshot, L2a).
+                                       T2.1: INTENT_EVENT_NAMES +2 rows (1 fallback, 1 exact match) -- see D5 correction below
+      session.ts / session.test.ts    dispatchHostAction, resolveRoundContent, session launch/snapshot.
+                                       T2.1: createSession initialises styleState: {}
+      broadcast.ts / broadcast.test.ts  broadcastState -- the ONLY call site that redacts + serialises state per channel.
+                                       T2.1: retired `as GridStyle` cast (Defect D3); pointLadder now read off
+                                       `board.meta`, not round.style -- see style-author obligation below.
+                                       `styleState` deliberately NOT on `BroadcastPayload` (invariant 5)
       host-manual-round.test.ts       integration test: a full host-manual round via intents/log/session together
     styles/
-      grid.ts / grid.test.ts          T1's one style plugin (buildBoard, availableQuestions)
+      grid.ts / grid.test.ts          T1's one style plugin (buildBoard, availableQuestions).
+                                       T2.1: buildBoard gains unused `_state` param; publishes `meta.pointLadder`
+                                       (the worked example for the new style-author obligation)
     scoring/
       flat.ts / flat.test.ts          T1's one scoring plugin (pure ScoreDelta[] output)
     transport/
@@ -204,11 +214,23 @@ When durable project knowledge changes:
 and `presets/school-assembly.ts` are byte-identical to pre-T1 (`git diff` empty) -- the whole
 engine was built as new sibling files, per the plan's protected-file constraint.
 
-Still not built: T2+ (remaining 5 styles, remaining scoring engines, lifelines, special
-tiles, multi-round play), any input plugin (buzzer/network), persistence. See
-`process/general-plans/active/gameshow-engine_24-08-26/` for the full plan, execute
-report, and closeout packet -- the task folder is **kept active**, not archived, because
-three manual verification gates are still open (see Outstanding Work below).
+**T2.1 (StylePlugin/Intent/SessionState contract revision) landed 2026-08-27, WITH_GAPS.** 13
+files modified, 0 created/deleted. `src/registry/index.ts` gained exactly 3 members
+(`styleState`, two intents, `buildBoard`'s `state` param); `src/config/types.ts` untouched. All
+4 automated gates green, EVL-confirmed independently. VALIDATE was SKIPPED for this phase at
+user direction -- 6 plan defects were found during EXECUTE (3 hard breaks the plan said would
+not happen), none of which are outstanding (all fixed same-session). See
+`process/general-plans/active/gameshow-engine-t2_24-08-26/gameshow-engine-t2_CLOSEOUT_24-08-26.md`
+for the full process-learning record. Task folder is **kept active**, not archived -- one
+Hybrid-tier gate (`INTENT_EVENT_NAMES` diff, T2 SPEC AC#12) needs human sign-off, not agent
+judgment (see Outstanding Work below).
+
+Still not built: T2.2 (multi-round orchestration, `advanceRound` dispatch wiring), T2.3
+(remaining 5 styles, grid Defect D1 fix), T2.4/T2.5 (streak/lifeline write paths), any input
+plugin (buzzer/network), persistence. See
+`process/general-plans/active/gameshow-engine_24-08-26/` for the T1 plan/report/closeout and
+`process/general-plans/active/gameshow-engine-t2_24-08-26/` for T2's -- both task folders are
+**kept active**, not archived (see Outstanding Work below).
 
 ## Technology Stack
 
@@ -244,12 +266,19 @@ No `??` chains in engine code. Arrays REPLACE, never concatenate.
 The engine applies and logs them. Undo, reconnect, and score-dispute auditing all derive
 from this. `ScoringPlugin.score()` MUST be pure — impurity breaks undo silently.
 
-**Four invariants (do not break):**
+**Five invariants (do not break):**
 1. The stage view stays fully playable with zero players connected (`degradeToOfflineOnNetworkLoss`).
 2. Content is snapshotted into the session at launch (`snapshotContentAtLaunch`) — editor
    edits must never mutate a live board.
 3. Scoring plugins are pure.
 4. Answers are redacted at the **transport** boundary (`redactQuestion`), never in the view layer.
+5. **`styleState` is server-only; it never reaches `BroadcastPayload`.** (Locked 2026-08-27,
+   post-T2.1 EVL.) `styleState` appears nowhere in `src/engine/broadcast.ts` — style-derived
+   data reaches clients only via `board.meta`/`board.cells[].meta`. This is deliberate: because
+   `styleState` never goes on the wire, answer-adjacent intermediates (e.g. hangman's masked-label
+   computation) structurally cannot leak to the projector. Do not "helpfully" add `styleState` to
+   `BroadcastPayload` in a future phase — if a client needs a specific piece of style state,
+   project it through `board.meta` instead. See `CUSTOMIZATION.md` §Five invariants.
 
 **Style conventions.** Many small files over few large ones. Named constants over magic
 numbers. Explicit error handling. Immutable updates.
@@ -282,6 +311,32 @@ numbers. Explicit error handling. Immutable updates.
   legitimate `copy.answer` field; the only correct test scans the serialised payload for
   sentinel VALUES. See Learnings below — this was found by building, not by design review.
 
+**T2.1 contract shape (new 2026-08-27 — read before writing a new `StylePlugin` in `src/styles/`):**
+
+- **`SessionState.styleState: Record<string, unknown>`** — opaque per-style scratch space, the
+  engine never interprets it. JSON-safe values ONLY (`Set`/`Map` silently collapse to `{}` on
+  serialisation — confirmed by T2.1 EVL; this exact bug class already shipped once in T1 via
+  `ReadonlySet`). Written via the `setStyleState` intent, never by mutation (keeps one host
+  action reversible by one `undo()`, Design Lock L2a). See invariant 5 above — it is server-only
+  and does not reach `BroadcastPayload`.
+- **Two new `Intent` variants:** `setStyleState` (wholesale-replaces `styleState`) and
+  `advanceRound` (increments `roundIndex`, clears `styleState`). Both proven via
+  `INTENT_TOUCHED_KEYS`'s undo machinery, including the first two-key batch-union undo row in
+  the codebase (`advanceRound` touches both `roundIndex` and `styleState`). Neither has a live
+  dispatch call site yet — T2.2 wires the first one.
+- **`StylePlugin.buildBoard(round, options, state)`** — third parameter `state: SessionState`
+  is now required (read-only; styles must not mutate it). Interface compliance only for `grid`
+  (unused, named `_state`) — this exists so a T2.3 style can derive per-cell data from live
+  state (e.g. `styleState`) that `grid` doesn't need.
+- **Style-author obligation: `board.meta.pointLadder`.** Moved from the round's style config to
+  `board.meta` as the source of truth for audience point-value labels — omitting it fails
+  SILENTLY (blank labels, no error). See `CUSTOMIZATION.md` §Writing a style plugin before
+  authoring any of the five remaining T2.3 styles.
+- **`GameEventName` accounting (D5), corrected 2026-08-27:** 19 members total; reachable 7→8
+  (`advanceRound → round.started`, exact match); unreachable 12→11; fallbacks 6→7
+  (`setStyleState → phase.changed`, new fallback). The T2.1 plan's original stated baseline
+  (11→10 unreachable) was wrong by one; corrected via EVL, independently recomputed twice.
+
 ## Environment and Configuration
 
 No environment variables and no secrets at present — the engine is local-first and has no
@@ -293,15 +348,20 @@ under `presets/`, versioned in git.
 
 ## Scan Metadata
 
-- Scanned: 2026-08-24 (T0 baseline) / updated 2026-08-24 (T1 engine core landed)
+- Scanned: 2026-08-24 (T0 baseline) / updated 2026-08-24 (T1 engine core landed) / updated
+  2026-08-27 (T2.1 contract revision landed, WITH_GAPS)
 - Method: vc-setup Flow A (new project) for T0; UPDATE PROCESS reconciliation against the
-  T1 execute report + PLAN + SPEC for this update (no direct re-read of every source file —
-  see the execute report's own verified `git diff` evidence)
-- Source files: 6 TypeScript files at T0 (~1400 lines); 27 new files added by T1 (see
-  Repository Structure above)
+  T1 execute report + PLAN + SPEC for T1's update; UPDATE PROCESS reconciliation against the
+  T2.1 EXECUTE report + EVL confirmation report + PLAN for this update (no direct re-read of
+  every source file — see the EVL report's own independently re-run gate evidence)
+- Source files: 6 TypeScript files at T0 (~1400 lines); 27 new files added by T1; 13 files
+  modified by T2.1, 0 created/deleted (see Repository Structure above)
 - Verified: full gate sequence (`npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`)
   green from a clean `dist/` at T1 EXECUTE + independent EVL confirmation run; 12 test files
-  pass. 3 manual gates remain unconfirmed by a human — see Outstanding Work.
+  pass. T1: 3 manual gates remain unconfirmed by a human. T2.1: all 4 automated gates
+  independently re-run green by EVL (`gameshow-engine-t2-evl-iteration-001_REPORT_27-08-26.md`);
+  1 Hybrid-tier gate (`INTENT_EVENT_NAMES` diff, T2 SPEC AC#12) remains unconfirmed by a human —
+  see Outstanding Work.
 
 ## Source References
 
@@ -335,22 +395,28 @@ making operational changes.
   (`process/general-plans/active/gameshow-engine_24-08-26/gameshow-engine_CLOSEOUT_24-08-26.md`).
   Do not rename the branch without explicit user instruction.
 
-**T2 SPEC input — 4 contract gaps to evaluate together, not patch individually** (see the
-backlog note `process/general-plans/backlog/gameshow-engine-t2-styleplugin-contract.md` for
-full detail; do not start T2 PLAN work without reading it first):
+**T2 SPEC input — 4 contract gaps, resolved by T2.1 (2026-08-27):**
 
-- No `SessionState` slot for style-owned persistent state (blocks a `tictac`-style plugin).
-- `StylePlugin.buildBoard` does not receive `state` (this is why T1 has to derive
-  `cells[].consumed` in `broadcastState` instead of in the style plugin itself).
-- No `Intent` variant touches `roundIndex` — **T1 can only play round 1 of a multi-round
-  show**; this is a contract gap, not an implementation shortcut.
-- `GameEventName` is a closed union, forcing 5 imprecise intent-to-event-name fallbacks
-  (`setTurn`, `stopClock`, `playSound`, `effect`, `custom`).
+- No `SessionState` slot for style-owned persistent state (blocks a `tictac`-style plugin). —
+  **RESOLVED**: `SessionState.styleState`.
+- `StylePlugin.buildBoard` does not receive `state`. — **RESOLVED**: 3rd `state` param, required.
+- No `Intent` variant touches `roundIndex` — T1 could only play round 1. — **RESOLVED
+  mechanically**: `advanceRound` intent exists and is undo-safe, but has **no live dispatch call
+  site yet** (T2.2 must wire it) and is currently **unbounded** — see Known risks below.
+- `GameEventName` closed union forcing imprecise fallbacks. — **PARTIALLY RESOLVED**: one more
+  fallback added (`setStyleState`, 6→7), one more previously-unreachable member closed
+  (`advanceRound → round.started`, unreachable 12→11). Net direction is the same tradeoff as
+  before, now with `setStyleState` as a 7th fallback pending Hybrid-tier human sign-off
+  (T2 SPEC AC#12) on whether that's acceptable.
+
+**New style-author obligation from T2.1 (undocumented before this update; see
+`CUSTOMIZATION.md` §Writing a style plugin):** a style publishing `board.meta.pointLadder`
+is now required for audience point-value labels — omission fails silently (blank labels).
 
 **Outstanding work**
 
 - **T0 (config schema, cascade, registry, redaction) — DONE.** `src/config/**`,
-  `src/registry/index.ts`, unchanged since T0.
+  `src/registry/index.ts` contract shape frozen except for T2.1's 3 additive members.
 - **T1 (playable core, host-manual) — DONE, code-complete and automated-gate-green, but NOT
   yet VERIFIED.** Phase machine, intents/log/undo, `grid` style, `flat` scoring, `local`
   transport, stage view, host controller, `demo-t1` preset, `server.ts` glue entrypoint all
@@ -358,14 +424,29 @@ full detail; do not start T2 PLAN work without reading it first):
   plan's own Phase Completion Rules require human confirmation for these, not agent judgment.
   Full detail: `process/general-plans/active/gameshow-engine_24-08-26/` (task folder kept
   active, not archived, until the manual gates close).
+- **T2.1 (StylePlugin/Intent/SessionState contract revision) — CODE DONE, all 4 automated
+  gates green, EVL-confirmed independently. NOT yet VERIFIED** — one Hybrid-tier gate
+  (`INTENT_EVENT_NAMES` diff review, T2 SPEC AC#12) requires explicit human sign-off, not
+  agent judgment. Full detail:
+  `process/general-plans/active/gameshow-engine-t2_24-08-26/` (task folder kept active, not
+  archived, until that sign-off lands).
 - **Manual gates still open (need a human, not more code):**
-  1. Projector legibility from the back of a room (item 23) — needs a real external display.
-  2. Host token visibly required, confirmed via a browser DevTools network tab (item 26) —
+  1. Projector legibility from the back of a room (item 23, T1) — needs a real external display.
+  2. Host token visibly required, confirmed via a browser DevTools network tab (item 26, T1) —
      raw-HTTP 401 is confirmed programmatically; the browser confirmation step is not done.
-  3. A full pre-show dry run on the real venue network (SPEC AC#11) — not done.
-- **T2+ (remaining styles/scoring/lifelines/special tiles/multi-round play)** — outstanding,
-  blocked in part on the 4 contract gaps above being resolved as one coherent T2 SPEC/PLAN
-  pass, not four individual patches.
+  3. A full pre-show dry run on the real venue network (SPEC AC#11, T1) — not done.
+  4. `INTENT_EVENT_NAMES` diff human sign-off (T2.1, T2 SPEC AC#12) — is `setStyleState →
+     phase.changed` an acceptable 7th fallback? Numbers are computed and correct (see D5
+     correction above); the judgment call is not resolvable by any agent.
+- **T2.2 (multi-round orchestration)** — next up. Must bound `advanceRound` before adding a
+  live "next round" dispatch site (see Known risks below) — genuinely unreachable today (no
+  dispatch call site exists anywhere in application code, confirmed by both execute-agent and
+  EVL), but becomes reachable the moment T2.2 wires one in.
+- **T2.3 (remaining 5 styles: list/trivia/wheel/tictac/hangman, + grid Defect D1 fix)** —
+  blocked on T2.1 (now unblocked). Read `CUSTOMIZATION.md` §Writing a style plugin first.
+- **T2.4 (streak)/T2.5 (lifelines)** — `attemptsUsed`/`TeamState.streak`/
+  `TeamState.lifelinesUsed` write paths still have no owner (T2.1 Open Item 1, carried
+  forward unchanged).
 - **T3 (hardware buzzer input), T4 (network/player participation), T5 (polish/persistence)**
   — outstanding, unchanged from the SPEC's tier sequencing.
 - **No CI.** `npm run typecheck && npm test` is still a local-only gate; recommended as a
@@ -385,3 +466,19 @@ full detail; do not start T2 PLAN work without reading it first):
 - Host token comparison (`local.ts`) is not constant-time — accepted for T1's local-LAN-only
   threat model (plan Open Item 4); must be revisited if this transport is ever exposed beyond
   the venue LAN.
+- **`advanceRound` is unbounded** (new 2026-08-27, T2.1). `roundIndex + 1` can exceed
+  `program.rounds.length - 1`; the show then dies on the NEXT `broadcastState` call, not at the
+  intent itself. Confirmed genuinely unreachable today (no live dispatch call site anywhere in
+  application code) but **T2.2 MUST bound it** before wiring a real "next round" host action.
+  Tracked in backlog — see `process/general-plans/backlog/`.
+- **`setStyleState` adopts the caller's object by reference** (new 2026-08-27, T2.1). A caller
+  that retains and later mutates the object it dispatched corrupts both live `styleState` AND
+  the already-logged undo audit entry (same reference, not a snapshot). Reproduced by EVL, not
+  yet guarded by a test. Recommended fix: a defensive clone in `applyIntent`'s `setStyleState`
+  case — tracked in backlog.
+- **`styleState`'s unredacted-broadcast risk (R3) is a discipline requirement, not a structural
+  guarantee** — no automated scan for answer-derived text in `styleState`'s contents.
+  Currently dormant (styleState isn't on the wire at all — invariant 5), but becomes live the
+  moment a T2.3 style both writes answer-derived text to `styleState` AND a later phase adds
+  `styleState` to `BroadcastPayload` (which invariant 5 says not to do without re-deriving
+  through `board.meta` instead).
