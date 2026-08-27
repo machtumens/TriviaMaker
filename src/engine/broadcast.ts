@@ -28,7 +28,7 @@ import {
   type SessionState, type StylePlugin, type TeamState, type TransportHandle,
 } from '../registry/index'
 import type {
-  CopyStrings, GameShowConfig, GridStyle, Question, ThemeTokens,
+  CopyStrings, GameShowConfig, Question, ThemeTokens,
 } from '../config/types'
 import { presentationForRound, redactQuestion } from '../config/resolve'
 import { findQuestion, resolvedQuestionSec } from './intents'
@@ -125,11 +125,17 @@ export function broadcastState(
   const round = currentRound(config, state.roundIndex)
   const style = resolve<StylePlugin>('style', styleKeyFor(round))
   const categories = resolveRoundContent(config, round)
-  const gridConfig = round.style as GridStyle
 
-  const built = style.buildBoard(round, { ...gridConfig, categories })
+  const built = style.buildBoard(round, { ...round.style, categories }, state)
   const hostBoard = withDerivedConsumption(built, state)
-  const audienceBoard = withPointValueLabels(hostBoard, gridConfig.pointLadder ?? [])
+  // The ladder is read back off the BOARD, not off `round.style`: a board is the
+  // only thing every style produces, so this needs no per-style cast. Runtime-
+  // checked because `BoardModel.meta` is `Record<string, unknown>` by design.
+  // Still grid-shaped (see `withPointValueLabels`) — generalising audience
+  // relabelling across styles is a later concern, not this one.
+  const rawPointLadder = hostBoard.meta?.['pointLadder']
+  const pointLadder = Array.isArray(rawPointLadder) ? (rawPointLadder as number[]) : []
+  const audienceBoard = withPointValueLabels(hostBoard, pointLadder)
 
   const presentation = presentationForRound(config, round)
   const question = state.currentQuestionId

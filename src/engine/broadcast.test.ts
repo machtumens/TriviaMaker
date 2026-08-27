@@ -104,7 +104,10 @@ const fixtureStyle: StylePlugin<FixtureOptions> = {
         })
       }
     }
-    return { kind: FIXTURE_STYLE_KEY, cells }
+    // `broadcastState` reads the audience point-value ladder back off the
+    // BOARD (never off `round.style`), so a style that wants point-value
+    // labels must publish its ladder here — exactly as `grid.ts` does.
+    return { kind: FIXTURE_STYLE_KEY, cells, meta: { pointLadder: options.pointLadder } }
   },
   availableQuestions: (state, board) =>
     board.cells.map(c => c.questionId).filter(id => !state.consumed.has(id)),
@@ -121,7 +124,7 @@ const state: SessionState = {
   consumed: new Set(['b-100']),
   teams: [{ id: 'a', name: 'A', color: '#f00', score: 0, streak: 0, lifelinesUsed: {}, eliminated: false }],
   players: [], buzzes: [], turnTeamId: null, attemptsUsed: 0,
-  lockedOutTeamIds: new Set<string>(), clockStartedAt: null, log: [],
+  lockedOutTeamIds: new Set<string>(), clockStartedAt: null, styleState: {}, log: [],
 }
 
 // --- run it -----------------------------------------------------------------
@@ -235,6 +238,61 @@ for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload
   assert.deepEqual(stagePayload['consumed'], ['b-100'], 'consumed travels as an array')
   assert.deepEqual(stagePayload['lockedOutTeamIds'], [], 'lockedOutTeamIds travels as an array')
   assert.equal(stagePayload['questionSec'], 30, 'the resolved countdown length travels with the payload')
+}
+
+// --- styleState survives the payload serialisation unchanged ---------------
+// The regression guard for the `Set`-collapses-to-`{}` class of bug that T1
+// already shipped once with `consumed`/`lockedOutTeamIds`. `styleState` is NOT
+// a named field on `BroadcastPayload` in this tier (no style needs it
+// client-side yet), so the round-trip property is proven on the `SessionState`
+// value itself — which is the value a future payload field would carry.
+{
+  const STYLE_STATE = {
+    revealedSlots: ['a', 'b'],
+    ownership: { c1: 'teamA', c2: null },
+    guesses: 3,
+    solved: false,
+  }
+  const stateWithStyle: SessionState = { ...state, styleState: STYLE_STATE }
+
+  const roundTripped = JSON.parse(JSON.stringify(stateWithStyle)) as Record<string, unknown>
+  assert.deepEqual(
+    roundTripped['styleState'], STYLE_STATE,
+    'nested arrays and plain objects in styleState survive JSON serialisation byte-for-byte',
+  )
+
+  // Control: this is the exact shape the doc comment forbids. If this ever
+  // starts passing, something began converting styleState and the JSON-safety
+  // rule can be relaxed — until then it is why the rule exists.
+  const withSet = JSON.parse(JSON.stringify({ styleState: { picked: new Set(['a']) } })) as {
+    styleState: { picked: unknown }
+  }
+  assert.deepEqual(
+    withSet.styleState.picked, {},
+    'a Set in styleState collapses to {} — nothing converts it, unlike consumed',
+  )
+
+  // The broadcast path itself still works with a populated styleState, and
+  // still leaks nothing: styleState is carried unredacted by design, so the
+  // value-based sentinel scan must stay clean.
+  const styleCalls: Array<{ channel: string; payload: unknown }> = []
+  const styleHandle: TransportHandle = {
+    broadcast: (channel, payload) => { styleCalls.push({ channel, payload }) },
+    onCommand: () => { /* not used here */ },
+    rtt: () => 0,
+    stop: async () => { /* not used here */ },
+  }
+  broadcastState(styleHandle, stateWithStyle, CONFIG)
+  assert.equal(styleCalls.length, 3, 'a populated styleState does not disturb the broadcast')
+  for (const call of styleCalls.filter(c => c.channel !== 'host')) {
+    const serialised = JSON.stringify(call.payload)
+    for (const secret of Object.values(SECRETS)) {
+      assert.equal(
+        serialised.includes(secret), false,
+        `${call.channel}: no secret leaks when styleState is populated`,
+      )
+    }
+  }
 }
 
 console.log('✓ broadcast redaction + board delivery: all checks passed')

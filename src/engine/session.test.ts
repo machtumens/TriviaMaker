@@ -93,6 +93,7 @@ function makeConfig(round: Partial<Round> = {}): GameShowConfig {
   assert.equal(session.roundIndex, 0, 'on the first round')
   assert.equal(session.currentQuestionId, null, 'with nothing selected')
   assert.equal(session.consumed.size, 0, 'and nothing consumed')
+  assert.deepEqual(session.styleState, {}, 'and an empty style-state bag')
   assert.deepEqual(session.log, [], 'and an empty log')
   assert.equal(session.teams.length, 2, 'pre-authored teams are seeded')
   assert.equal(session.teams[0]?.score, 0, 'default starting score is 0')

@@ -39,6 +39,8 @@ export const INTENT_EVENT_NAMES: Record<Intent['type'], GameEventName> = {
   playSound: 'phase.changed',      // fallback, weakest — presentation-only
   effect: 'phase.changed',         // fallback, weakest
   eliminate: 'round.ended',        // fallback — closest semantic fit
+  setStyleState: 'phase.changed',  // fallback — no exact member for opaque style writes
+  advanceRound: 'round.started',   // exact match — one previously-unreachable member
   custom: 'phase.changed',         // fallback — payload.key differentiates
 }
 

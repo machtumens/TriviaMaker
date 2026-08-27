@@ -43,6 +43,10 @@ export const INTENT_TOUCHED_KEYS: Record<Intent['type'], (keyof SessionState)[]>
   playSound: [],
   effect: [],
   eliminate: ['teams'],
+  setStyleState: ['styleState'],
+  // The first intent to declare TWO keys in one entry. `log.ts` unions the keys
+  // of a whole batch before snapshotting, so both rewind in a single undo.
+  advanceRound: ['roundIndex', 'styleState'],
   // no generic way to know what a custom intent touches. Known limitation:
   // a custom intent is not undoable in T1 (PLAN Open Items).
   custom: [],
@@ -161,6 +165,16 @@ export function applyIntent(state: SessionState, intent: Intent): SessionState {
         ...state,
         teams: replaceTeam(state.teams, intent.teamId, team => ({ ...team, eliminated: true })),
       }
+
+    case 'setStyleState':
+      // Wholesale replacement, not a merge: the style owns the whole bag, and a
+      // merge would make "delete a key" impossible to express as an intent.
+      return { ...state, styleState: intent.nextStyleState }
+
+    case 'advanceRound':
+      // Clearing `styleState` here is the engine-level safety net against one
+      // round's style state bleeding into the next (see `SessionState`).
+      return { ...state, roundIndex: state.roundIndex + 1, styleState: {} }
 
     default:
       return assertNever(intent)

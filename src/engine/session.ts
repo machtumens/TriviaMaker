@@ -120,6 +120,7 @@ export function createSession(
     attemptsUsed: 0,
     lockedOutTeamIds: new Set<string>(),
     clockStartedAt: null,
+    styleState: {},
     log: [],
   }
 }

@@ -78,7 +78,7 @@ function buildBoard(config: GameShowConfig, state: SessionState): BoardModel {
     ...(round.style as GridStyle),
     categories: resolveRoundContent(config, round),
   }
-  return gridStyle.buildBoard(round, options)
+  return gridStyle.buildBoard(round, options, state)
 }
 
 // --- no player-device machinery exists at all -------------------------------

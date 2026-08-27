@@ -71,11 +71,11 @@ function makeState(consumed: string[] = []): SessionState {
     consumed: new Set(consumed),
     teams: [{ id: 'a', name: 'A', color: '#f00', score: 0, streak: 0, lifelinesUsed: {}, eliminated: false }],
     players: [], buzzes: [], turnTeamId: null, attemptsUsed: 0,
-    lockedOutTeamIds: new Set<string>(), clockStartedAt: null, log: [],
+    lockedOutTeamIds: new Set<string>(), clockStartedAt: null, styleState: {}, log: [],
   }
 }
 
-const board = gridStyle.buildBoard(ROUND, OPTIONS)
+const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
 
 // --- shape ------------------------------------------------------------------
 {
@@ -160,7 +160,7 @@ const board = gridStyle.buildBoard(ROUND, OPTIONS)
   const shortCategories: Category[] = [
     { id: 'short', title: 'Short', questions: [FIXTURE_CATEGORIES[0]!.questions[0]!] },
   ]
-  const shortBoard = gridStyle.buildBoard(ROUND, { ...FIXTURE_STYLE, categories: shortCategories })
+  const shortBoard = gridStyle.buildBoard(ROUND, { ...FIXTURE_STYLE, categories: shortCategories }, makeState())
   assert.equal(shortBoard.cells.length, 1, 'only the authored questions become tiles')
 }
 

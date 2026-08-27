@@ -29,7 +29,10 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
   stageComponent: 'grid-board',
   hostComponent: 'grid-host-board',
 
-  buildBoard(round: Round, options: GridBuildOptions): BoardModel {
+  // `_state` is required by the `StylePlugin` contract so styles CAN derive
+  // per-cell data from live state. A grid board does not need to — its cells
+  // come entirely from the round's content and ladder (T2.1 Design Lock L3).
+  buildBoard(round: Round, options: GridBuildOptions, _state: SessionState): BoardModel {
     const cells: BoardModel['cells'] = []
 
     for (let row = 0; row < options.pointLadder.length; row++) {

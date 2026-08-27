@@ -40,6 +40,35 @@ export interface SessionState {
   readonly attemptsUsed: number
   readonly lockedOutTeamIds: ReadonlySet<string>
   readonly clockStartedAt: number | null
+  /**
+   * Opaque per-style scratch space. The engine never interprets its contents —
+   * it only carries them, snapshots them for undo (via `INTENT_TOUCHED_KEYS`'s
+   * `setStyleState`/`advanceRound` rows) and resets them at a round boundary.
+   *
+   * WRITE IT WITH THE `setStyleState` INTENT, never by mutation. That is what
+   * keeps one host press reversible by one undo press (Design Lock L2a); a
+   * direct mutation is invisible to the snapshot-diff undo in `log.ts`.
+   *
+   * JSON-SAFE VALUES ONLY — plain objects, arrays, strings, numbers, booleans,
+   * `null`. NEVER a `Set` or a `Map`. `broadcast.ts` explicitly converts
+   * `consumed` and `lockedOutTeamIds` to arrays on the way out; nothing
+   * converts `styleState`, so a `Set` stored here serialises to `{}` over SSE
+   * and the client silently receives an empty object instead of your data.
+   *
+   * SECURITY / REDACTION — THIS BROADCASTS UNREDACTED to `stage` and `player`,
+   * the same discipline class as `consumed`. A style MUST NEVER store
+   * answer-derived text in it. The realistic trap is a hangman-style masked
+   * label: deriving `"_ A _ _"` for display is fine, but caching the answer
+   * string itself (or a reveal state that runs ahead of what the audience has
+   * actually earned) leaks it to every projector and phone in the room. Store
+   * indices into already-public data, or derive the masked form at render time.
+   *
+   * RESET — `advanceRound` clears this to `{}` as an engine-level safety net so
+   * one round's state can never bleed into the next. Per-question granularity
+   * is the style's own job: reset your own sub-keys from `onSelect`. No style
+   * does this yet — the mechanism exists before its first consumer.
+   */
+  readonly styleState: Record<string, unknown>
   readonly log: readonly GameEvent[]
 }
 
@@ -85,6 +114,10 @@ export type Intent =
   | { type: 'playSound'; key: string }
   | { type: 'effect'; key: string; options?: Record<string, unknown> }
   | { type: 'eliminate'; teamId: string }
+  /** Replace `state.styleState` wholesale. The undo-safe style write path. */
+  | { type: 'setStyleState'; nextStyleState: Record<string, unknown> }
+  /** Move to the next round and clear `styleState`. See `SessionState.styleState`. */
+  | { type: 'advanceRound' }
   | { type: 'custom'; key: string; payload: Record<string, unknown> }
 
 // ---------------------------------------------------------------------------
@@ -93,8 +126,13 @@ export type Intent =
 
 export interface StylePlugin<O = Record<string, unknown>> {
   key: RegistryKey
-  /** Build the board model this style renders from a round's content. */
-  buildBoard(round: Round, options: O): BoardModel
+  /**
+   * Build the board model this style renders from a round's content.
+   *
+   * `state` is READ-ONLY context (notably `styleState`) for styles that derive
+   * per-cell data from live session state. Never mutate it.
+   */
+  buildBoard(round: Round, options: O, state: SessionState): BoardModel
   /** Which questions may be picked right now. */
   availableQuestions(state: SessionState, board: BoardModel): string[]
   /** Called when the host/turn-owner picks. Returns intents. */

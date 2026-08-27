@@ -67,6 +67,7 @@ function makeState(): SessionState {
     attemptsUsed: 0,
     lockedOutTeamIds: new Set<string>(),
     clockStartedAt: CLOCK_SENTINEL,
+    styleState: {},
     log: [],
   }
 }
@@ -185,6 +186,47 @@ function applyAndCheck(intent: Intent): { before: SessionState; after: SessionSt
   assert.equal(before.teams[1]?.eliminated, false, 'the input state is not mutated')
 }
 
+// --- setStyleState ----------------------------------------------------------
+{
+  const NEXT = { revealedSlots: ['a', 'b'], ownership: { c1: 'teamA' } }
+  const { after } = applyAndCheck({ type: 'setStyleState', nextStyleState: NEXT })
+  assert.deepEqual(after.styleState, NEXT, 'the intent\'s value becomes the new styleState')
+  // Documents a sharp edge rather than endorsing it: the intent's object is
+  // adopted BY REFERENCE, so a caller that keeps and later mutates it would
+  // rewrite live state and the logged audit copy alike. Emitters must hand over
+  // a freshly-built object. Change this assertion if defensive cloning is ever
+  // added — it is here so that change is a deliberate one, not a silent one.
+  assert.equal(after.styleState, NEXT, 'adopted by reference, not copied')
+}
+{
+  // Replacement, not a merge — a style must be able to DELETE one of its keys.
+  const before: SessionState = { ...makeState(), styleState: { stale: 1, alsoStale: 2 } }
+  const after = applyIntent(before, { type: 'setStyleState', nextStyleState: { fresh: 3 } })
+  assert.deepEqual(after.styleState, { fresh: 3 }, 'the previous keys are gone, not merged')
+}
+
+// --- advanceRound -----------------------------------------------------------
+{
+  const { before, after } = applyAndCheck({ type: 'advanceRound' })
+  assert.equal(after.roundIndex, before.roundIndex + 1, 'advanceRound moves to the next round')
+  assert.deepEqual(after.styleState, {}, 'and clears styleState')
+}
+{
+  // The reset matters most when there IS something to clear.
+  const before: SessionState = {
+    ...makeState(),
+    roundIndex: 3,
+    styleState: { revealed: ['x'], guesses: 4 },
+  }
+  const after = applyIntent(before, { type: 'advanceRound' })
+  assert.equal(after.roundIndex, 4, 'roundIndex increments from a non-zero value')
+  assert.deepEqual(after.styleState, {}, 'a populated styleState is cleared at the round boundary')
+  assert.deepEqual(
+    before.styleState, { revealed: ['x'], guesses: 4 },
+    'the input state is not mutated',
+  )
+}
+
 // --- presentation-only intents touch nothing --------------------------------
 {
   applyAndCheck({ type: 'playSound', key: 'buzz' })
@@ -196,7 +238,8 @@ function applyAndCheck(intent: Intent): { before: SessionState; after: SessionSt
 {
   const EXPECTED: Array<Intent['type']> = [
     'setPhase', 'awardPoints', 'consumeQuestion', 'selectQuestion', 'setTurn',
-    'lockout', 'startClock', 'stopClock', 'playSound', 'effect', 'eliminate', 'custom',
+    'lockout', 'startClock', 'stopClock', 'playSound', 'effect', 'eliminate',
+    'setStyleState', 'advanceRound', 'custom',
   ]
   assert.deepEqual(
     Object.keys(INTENT_TOUCHED_KEYS).sort(),

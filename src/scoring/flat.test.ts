@@ -38,7 +38,7 @@ function makeState(): SessionState {
     consumed: new Set<string>(),
     teams: [{ id: 'a', name: 'A', color: '#f00', score: 500, streak: 2, lifelinesUsed: {}, eliminated: false }],
     players: [], buzzes: [], turnTeamId: 'a', attemptsUsed: 0,
-    lockedOutTeamIds: new Set<string>(), clockStartedAt: null, log: [],
+    lockedOutTeamIds: new Set<string>(), clockStartedAt: null, styleState: {}, log: [],
   }
 }
 

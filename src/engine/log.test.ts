@@ -61,6 +61,7 @@ function makeState(phase: Phase = 'board'): SessionState {
     attemptsUsed: 0,
     lockedOutTeamIds: new Set<string>(),
     clockStartedAt: null,
+    styleState: {},
     log: [],
   }
 }
@@ -185,6 +186,58 @@ const DEPTH = 50
   assert.equal(result.state.consumed.size, 0, 'the consumed set is the pre-batch set, not a patched copy')
   assert.equal(result.state.phase, 'armed', 'phase restored by the same undo')
   assert.equal(result.state.log.length, 2, 'log is 2 (one batched action + one reversal), never 4')
+}
+
+// --- (f) a setStyleState batch reverses in exactly one undo ---------------
+{
+  const ORIGINAL = { revealedSlots: ['a'], ownership: { c1: 'teamA' } }
+  const before: SessionState = { ...makeState('board'), styleState: ORIGINAL }
+
+  const batch: Intent[] = [{ type: 'setStyleState', nextStyleState: { revealed: ['x'] } }]
+  const applied = applyIntentsWithLog(before, batch, 1, Date.now())
+  assert.deepEqual(applied.state.styleState, { revealed: ['x'] }, 'the style write applied')
+  assert.equal(applied.state.log.length, 1, 'one host action produced one event')
+
+  const result = undo(applied.state, DEPTH)
+  assert.equal(result.undone, true, 'the style write was undone')
+  assert.deepEqual(
+    result.state.styleState, ORIGINAL,
+    'ONE undo restores the pre-batch styleState value',
+  )
+  assert.equal(
+    result.state.styleState, ORIGINAL,
+    'the snapshot restores the original object, not a reconstructed copy',
+  )
+  assert.equal(result.state.log.length, 2, 'log is 2 (action + reversal)')
+  assert.equal(
+    undo(result.state, DEPTH).undone, false,
+    'a second undo finds nothing left — the first one reversed the whole action',
+  )
+}
+
+// --- (g) advanceRound touches TWO keys and both rewind in one undo ---------
+// The first intent in the codebase whose INTENT_TOUCHED_KEYS row names more
+// than one key. The batch-union snapshot is what makes this work; a per-intent
+// or single-key snapshot would leave roundIndex or styleState stranded.
+{
+  const ORIGINAL = { revealed: ['x'], guesses: 4 }
+  const before: SessionState = {
+    ...makeState('board'),
+    roundIndex: 2,
+    styleState: ORIGINAL,
+  }
+
+  const applied = applyIntentsWithLog(before, [{ type: 'advanceRound' }], 1, Date.now())
+  assert.equal(applied.state.roundIndex, 3, 'the round advanced')
+  assert.deepEqual(applied.state.styleState, {}, 'and styleState was cleared')
+  assert.equal(applied.state.log.length, 1, 'one host action produced one event')
+  assert.equal(applied.event.name, 'round.started', 'advanceRound logs an exact-match event name')
+
+  const result = undo(applied.state, DEPTH)
+  assert.equal(result.undone, true, 'the round advance was undone')
+  assert.equal(result.state.roundIndex, 2, 'roundIndex rewound by ONE undo')
+  assert.deepEqual(result.state.styleState, ORIGINAL, 'styleState rewound by the SAME undo')
+  assert.equal(result.state.log.length, 2, 'log is 2 (action + reversal), never 3')
 }
 
 // --- the batch payload keeps the full ordered intent list for audit -------
