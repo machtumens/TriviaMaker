@@ -46,6 +46,20 @@ const CONFIG: GameShowConfig = (() => {
   }
 })()
 
+/**
+ * A 5-round variant of `CONFIG`. Needed from T2.2 on: `applyIntent`'s
+ * `advanceRound` case is now BOUNDED, so the default single-round `CONFIG`
+ * makes `roundIndex: 0` already the last valid index and every advance a no-op.
+ * Blocks that mean to exercise a REAL advance must say so with this fixture.
+ */
+const CONFIG_MULTI_ROUND: GameShowConfig = {
+  ...CONFIG,
+  program: {
+    ...CONFIG.program,
+    rounds: ['r0', 'r1', 'r2', 'r3', 'r4'].map(id => ({ ...ROUND, id })),
+  },
+}
+
 const CLOCK_SENTINEL = 1
 
 function makeState(): SessionState {
@@ -75,9 +89,16 @@ function makeState(): SessionState {
 /**
  * Apply one intent and assert the touched/untouched split declared by
  * `INTENT_TOUCHED_KEYS` is exactly what happened.
+ *
+ * `stateOverride` exists for intents whose behaviour depends on state the
+ * default fixture does not carry — `advanceRound` needs a multi-round config to
+ * do anything at all now that it is bounded.
  */
-function applyAndCheck(intent: Intent): { before: SessionState; after: SessionState } {
-  const before = makeState()
+function applyAndCheck(
+  intent: Intent,
+  stateOverride: Partial<SessionState> = {},
+): { before: SessionState; after: SessionState } {
+  const before: SessionState = { ...makeState(), ...stateOverride }
   const after = applyIntent(before, intent)
   const touched = new Set<string>(INTENT_TOUCHED_KEYS[intent.type])
 
@@ -207,7 +228,7 @@ function applyAndCheck(intent: Intent): { before: SessionState; after: SessionSt
 
 // --- advanceRound -----------------------------------------------------------
 {
-  const { before, after } = applyAndCheck({ type: 'advanceRound' })
+  const { before, after } = applyAndCheck({ type: 'advanceRound' }, { config: CONFIG_MULTI_ROUND })
   assert.equal(after.roundIndex, before.roundIndex + 1, 'advanceRound moves to the next round')
   assert.deepEqual(after.styleState, {}, 'and clears styleState')
 }
@@ -215,6 +236,7 @@ function applyAndCheck(intent: Intent): { before: SessionState; after: SessionSt
   // The reset matters most when there IS something to clear.
   const before: SessionState = {
     ...makeState(),
+    config: CONFIG_MULTI_ROUND,
     roundIndex: 3,
     styleState: { revealed: ['x'], guesses: 4 },
   }
@@ -225,6 +247,32 @@ function applyAndCheck(intent: Intent): { before: SessionState; after: SessionSt
     before.styleState, { revealed: ['x'], guesses: 4 },
     'the input state is not mutated',
   )
+}
+
+// --- advanceRound: bounded at the last round (T2.2-L1 layer B) --------------
+{
+  // The default CONFIG has exactly 1 round, so roundIndex 0 IS the last valid
+  // index — the fixture this test needs, with no override.
+  const before = makeState()
+  assert.equal(
+    before.config.program.rounds.length - 1, before.roundIndex,
+    'fixture check: the default config puts the state on its last round',
+  )
+  const after = applyIntent(before, { type: 'advanceRound' })
+  assert.equal(
+    after.roundIndex, before.roundIndex,
+    'advanceRound no-ops at the last round instead of producing an out-of-range index',
+  )
+  assert.deepEqual(after.styleState, before.styleState, 'a no-op advance does not clear styleState either')
+}
+{
+  // A populated styleState survives a REJECTED advance. Clearing it would be a
+  // half-applied intent: the visible round never changed, but the style's state
+  // for that round silently vanished.
+  const before: SessionState = { ...makeState(), styleState: { revealed: ['x'] } }
+  const after = applyIntent(before, { type: 'advanceRound' })
+  assert.equal(after.roundIndex, 0, 'still on the last round')
+  assert.deepEqual(after.styleState, { revealed: ['x'] }, 'the rejected advance left styleState alone')
 }
 
 // --- presentation-only intents touch nothing --------------------------------

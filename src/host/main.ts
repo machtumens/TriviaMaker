@@ -15,6 +15,11 @@
 
 import type { BroadcastPayload } from '../engine/broadcast'
 
+// Derived from the payload rather than imported from the engine: this file only
+// ever sees what actually came over the wire.
+type HostTeam = BroadcastPayload['teams'][number]
+type HostRoundConfig = BroadcastPayload['config']['program']['rounds'][number]
+
 const HOST_STREAM = '/events/host'
 const COMMAND_ENDPOINT = '/command'
 const MS_PER_SECOND = 1000
@@ -140,11 +145,36 @@ function renderQuestionCard(payload: BroadcastPayload): HTMLElement | null {
   return card
 }
 
+/**
+ * Who is tied for lowest, if `eliminateLowest` is about to fire.
+ *
+ * Computed client-side from data the payload already carries so the host is
+ * offered the choice up front, instead of clicking blind and being rejected by
+ * the server (T2.2-L3). `null` means elimination does not apply at all.
+ */
+function eliminationTieCandidates(
+  round: HostRoundConfig | undefined,
+  teams: readonly HostTeam[],
+): HostTeam[] | null {
+  if (!round?.eliminateLowest) return null
+  const remaining = teams.filter(t => !t.eliminated)
+  if (remaining.length <= 1) return null
+  const lowestScore = Math.min(...remaining.map(t => t.score))
+  return remaining.filter(t => t.score === lowestScore)
+}
+
 function renderControls(payload: BroadcastPayload): HTMLElement {
   const row = el('div', 'row')
 
   if (payload.phase === 'lobby') {
     row.append(button('Start round', 'primary', () => { void send('start') }))
+    return row
+  }
+
+  // Title-card phases. `copy.host.skip` is reused here — there is no dedicated
+  // "Continue" string in `CopyStrings` (T2.2-L8, disclosed compromise).
+  if (payload.phase === 'roundIntro' || payload.phase === 'intermission') {
+    row.append(button(payload.copy.host.skip, 'primary', () => { void send('continue') }))
     return row
   }
 
@@ -173,12 +203,31 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
     // The host already knows whether the round is finished (the server sent
     // `isComplete` with the board), so the decision is made here rather than
     // making the server rebuild a board just to answer the same question.
-    const complete = payload.round.isComplete
-    row.append(button(
-      complete ? payload.copy.host.endRound : payload.copy.host.next,
-      'primary',
-      () => { void send(complete ? 'endRound' : 'next') },
-    ))
+    if (!payload.round.isComplete) {
+      row.append(button(payload.copy.host.next, 'primary', () => { void send('next') }))
+    } else {
+      // Advancing and ending are DIFFERENT actions. "End Show" never advances
+      // `roundIndex` (T2.2-L6), so it is the only offer on the last round.
+      const isLastRound = payload.roundIndex >= payload.config.program.rounds.length - 1
+      if (isLastRound) {
+        row.append(button(payload.copy.host.endRound, 'primary', () => { void send('endRound') }))
+      } else {
+        const round = payload.config.program.rounds[payload.roundIndex]
+        const candidates = eliminationTieCandidates(round, payload.teams)
+        if (candidates && candidates.length > 1) {
+          // One button per tied team. The server validates the id against the
+          // same tie set, so a stale payload is rejected rather than obeyed.
+          for (const team of candidates) {
+            row.append(button(
+              `Eliminate ${team.name} & continue`, 'wrong',
+              () => { void send('advanceRound', { eliminateTeamId: team.id }) },
+            ))
+          }
+        } else {
+          row.append(button(payload.copy.host.next, 'primary', () => { void send('advanceRound') }))
+        }
+      }
+    }
   }
 
   return row
@@ -244,11 +293,17 @@ function render(payload: BroadcastPayload): void {
     next.append(clock)
   }
 
-  next.append(el('h2', undefined, 'Board'))
-  if (payload.round.hostComponent === 'grid-host-board') {
-    next.append(renderBoard(payload))
+  // In `final` the board belongs to a round that is over; showing it frozen
+  // reads as a stuck screen (T2.2-L11). Scores below are already unconditional.
+  if (payload.phase === 'final') {
+    next.append(el('div', 'banner', 'Show complete — final scores below.'))
   } else {
-    next.append(el('div', 'banner', `No host renderer for "${payload.round.hostComponent}"`))
+    next.append(el('h2', undefined, 'Board'))
+    if (payload.round.hostComponent === 'grid-host-board') {
+      next.append(renderBoard(payload))
+    } else {
+      next.append(el('div', 'banner', `No host renderer for "${payload.round.hostComponent}"`))
+    }
   }
 
   next.append(el('h2', undefined, 'Scores'))

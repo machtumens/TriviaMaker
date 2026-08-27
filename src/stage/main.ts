@@ -164,7 +164,14 @@ function render(payload: BroadcastPayload): void {
 
   const next = document.createDocumentFragment()
   next.append(renderRoundBar(payload))
-  next.append(renderBoardFor(payload))
+  // The board belongs to a round that is over — leaving it up reads as a stuck
+  // projector (T2.2-L11). The scoreboard below is already unconditional, so the
+  // final scores stay on screen.
+  if (payload.phase === 'final') {
+    next.append(el('h1', 'title', 'Show Complete'))
+  } else {
+    next.append(renderBoardFor(payload))
+  }
   next.append(renderScoreboard(payload))
 
   const overlay = renderQuestionOverlay(payload)

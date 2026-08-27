@@ -10,10 +10,12 @@
  * belong to later tiers. It stays as a worked example of the full engine; this
  * file is the one you can run.
  *
- * T1 limitation worth knowing before you author more: there is no intent that
- * changes `roundIndex`, so a T1 show plays ROUND 1 only. Round 2 below is
- * authored so the preset is a realistic example and is ready the moment round
- * progression lands.
+ * Both rounds below are playable: T2.2 wires round advancement into the
+ * host's "Next Round"/"Continue" actions (server.ts's `advanceRound`/
+ * `continue` commands), so this preset plays start to finish — round 1,
+ * its authored `intro`-less-but-round-2-has-intro boundary (exercises
+ * `reveal -> roundIntro` directly, no intermission), round 2, then the
+ * host's "End Show" action.
  */
 
 import type { GameShowConfigInput } from '../src/config/types'

@@ -24,7 +24,7 @@ import { resolveConfig } from './config/resolve'
 import { resolvedQuestionSec } from './engine/intents'
 import { undo } from './engine/log'
 import {
-  createSession, currentRound, dispatchHostAction, resolveAnswer, styleKeyFor,
+  advanceToNextRound, createSession, currentRound, dispatchHostAction, resolveAnswer, styleKeyFor,
 } from './engine/session'
 import { broadcastState } from './engine/broadcast'
 import type { LocalTransportOptions } from './transport/local'
@@ -112,6 +112,29 @@ function intentsForCommand(state: SessionState, type: string, payload: unknown):
     case 'next':
       return [{ type: 'setPhase', phase: 'board' }]
 
+    // The whole round boundary in one batch (T2.2-L2). `advanceToNextRound`
+    // throws on the last round and on an unresolved elimination tie; a throw
+    // here rejects the command before any `seq` is consumed.
+    case 'advanceRound': {
+      const eliminateTeamId = typeof fields['eliminateTeamId'] === 'string'
+        ? fields['eliminateTeamId']
+        : undefined
+      return advanceToNextRound(state, { eliminateTeamId })
+    }
+
+    // Leaves a title card. Never advances the round — the advance already
+    // happened in the batch that put the show into this phase.
+    case 'continue': {
+      if (state.phase === 'intermission') {
+        const round = currentRound(state.config, state.roundIndex)
+        return [{ type: 'setPhase', phase: round.intro?.enabled ? 'roundIntro' : 'board' }]
+      }
+      if (state.phase === 'roundIntro') return [{ type: 'setPhase', phase: 'board' }]
+      throw new Error(`[server] "continue" is not valid from phase "${state.phase}"`)
+    }
+
+    // Ends the SHOW, from any round. `roundIndex` never moves, so it always
+    // points at a real round (T2.2-L6).
     case 'endRound':
       return [{ type: 'setPhase', phase: 'final' }]
 

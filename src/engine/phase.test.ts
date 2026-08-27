@@ -28,6 +28,18 @@ const ALL_PHASES = Object.keys(PHASE_TRANSITIONS) as Phase[]
   assert.ok(edgeCount > 0, 'the transition table is not empty')
 }
 
+// --- T2.2-L7: the round-boundary edge, asserted by name --------------------
+// The generic loop above already covers this edge because it iterates the table
+// itself. This named assertion is the guard against a future accidental revert
+// of the `reveal` row: without it, deleting 'roundIntro' from the table would
+// still leave every test in this file green.
+{
+  assert.equal(
+    canTransition('reveal', 'roundIntro'), true,
+    'T2.2: reveal -> roundIntro is legal (round boundary with no intermission, next round has an intro)',
+  )
+}
+
 // --- the table covers the whole Phase union --------------------------------
 {
   const EXPECTED_PHASES: Phase[] = [

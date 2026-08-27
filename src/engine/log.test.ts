@@ -41,6 +41,20 @@ const CONFIG: GameShowConfig = (() => {
   }
 })()
 
+/**
+ * A 4-round variant of `CONFIG`. From T2.2 on, `applyIntent`'s `advanceRound`
+ * case is BOUNDED by `program.rounds.length`, so any block that parks
+ * `roundIndex` above 0 and expects a REAL advance must supply a config with
+ * enough rounds to make that advance legal.
+ */
+const MULTI_ROUND_CONFIG: GameShowConfig = {
+  ...CONFIG,
+  program: {
+    ...CONFIG.program,
+    rounds: ['r1', 'r2', 'r3', 'r4'].map(id => ({ ...ROUND, id })),
+  },
+}
+
 const START_SCORE = 10
 
 function makeState(phase: Phase = 'board'): SessionState {
@@ -223,6 +237,7 @@ const DEPTH = 50
   const ORIGINAL = { revealed: ['x'], guesses: 4 }
   const before: SessionState = {
     ...makeState('board'),
+    config: MULTI_ROUND_CONFIG,
     roundIndex: 2,
     styleState: ORIGINAL,
   }
@@ -238,6 +253,65 @@ const DEPTH = 50
   assert.equal(result.state.roundIndex, 2, 'roundIndex rewound by ONE undo')
   assert.deepEqual(result.state.styleState, ORIGINAL, 'styleState rewound by the SAME undo')
   assert.equal(result.state.log.length, 2, 'log is 2 (action + reversal), never 3')
+}
+
+// --- (h) a WHOLE round boundary reverses in exactly one undo (T2.2-L2/L4) --
+// The batch shape `advanceToNextRound` produces: an elimination, a score reset
+// per surviving team, the advance, and the entry phase. If any of these were a
+// separate host action, taking back an elimination would cost two undo presses
+// and the projector would show a half-undone state between them — the same
+// class of bug as T1's cycle-0 FAIL. This is the direct regression guard.
+{
+  // The top-level CONFIG has exactly one round, which the T2.2 bound would
+  // (correctly) refuse to advance past.
+  const ORIGINAL_STYLE_STATE = { revealed: ['x'] }
+  const before: SessionState = {
+    ...makeState('reveal'),
+    config: MULTI_ROUND_CONFIG,
+    styleState: ORIGINAL_STYLE_STATE,
+    teams: [
+      { id: 'a', name: 'A', color: '#f00', score: 10, streak: 0, lifelinesUsed: {}, eliminated: false },
+      { id: 'b', name: 'B', color: '#0f0', score: 20, streak: 0, lifelinesUsed: {}, eliminated: false },
+      { id: 'c', name: 'C', color: '#00f', score: 5, streak: 0, lifelinesUsed: {}, eliminated: false },
+    ],
+  }
+
+  const RESET_REASON = 'round boundary: scores reset (program.carryScores is false)'
+  const batch: Intent[] = [
+    { type: 'eliminate', teamId: 'c' },
+    { type: 'awardPoints', teamId: 'a', delta: -10, reason: RESET_REASON },
+    { type: 'awardPoints', teamId: 'b', delta: -20, reason: RESET_REASON },
+    { type: 'advanceRound' },
+    { type: 'setPhase', phase: 'board' },
+  ]
+
+  const applied = applyIntentsWithLog(before, batch, 1, Date.now())
+  assert.equal(applied.state.roundIndex, 1, 'the round advanced')
+  assert.equal(applied.state.teams[0]?.score, 0, 'team A was reset')
+  assert.equal(applied.state.teams[1]?.score, 0, 'team B was reset')
+  assert.equal(applied.state.teams[2]?.eliminated, true, 'team C was eliminated')
+  assert.equal(applied.state.phase, 'board', 'and the entry phase landed')
+  assert.deepEqual(applied.state.styleState, {}, 'the advance cleared styleState')
+  assert.equal(applied.state.log.length, 1, 'a 5-intent host action logs ONE event, not five')
+
+  const result = undo(applied.state, DEPTH)
+  assert.equal(result.undone, true, 'the whole boundary was undone')
+  assert.equal(result.state.roundIndex, 0, 'roundIndex restored by ONE undo')
+  assert.equal(result.state.teams[0]?.score, 10, 'team A score restored by the SAME undo')
+  assert.equal(result.state.teams[1]?.score, 20, 'team B score restored by the SAME undo')
+  assert.equal(result.state.teams[2]?.eliminated, false, 'team C un-eliminated by the SAME undo')
+  assert.equal(result.state.phase, 'reveal', 'phase restored by the SAME undo')
+  assert.deepEqual(result.state.styleState, ORIGINAL_STYLE_STATE, 'styleState restored by the SAME undo')
+  assert.equal(result.state.log.length, 2, 'log is 2 (action + reversal), never 3+')
+  assert.equal(
+    undo(result.state, DEPTH).undone, false,
+    'a second press finds nothing left — the first one reversed the entire boundary',
+  )
+  // Team C carried a non-zero score (5) and got no awardPoints reset intent of
+  // its own, yet its score is still restored: the touched-key union captures
+  // the WHOLE `teams` field once, not a per-team patch. Omitting a redundant
+  // awardPoints intent therefore never weakens undo coverage.
+  assert.equal(result.state.teams[2]?.score, 5, 'a team with no awardPoints intent of its own is restored anyway')
 }
 
 // --- the batch payload keeps the full ordered intent list for audit -------

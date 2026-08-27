@@ -28,7 +28,9 @@ export const PHASE_TRANSITIONS: Record<Phase, readonly Phase[]> = {
   locked: ['adjudicate'],
   // wrong + reopen -> armed; correct or attempts exhausted -> reveal
   adjudicate: ['armed', 'reveal'],
-  reveal: ['board', 'intermission', 'final'],
+  // `roundIntro` (T2.2-L7): the round boundary with no intermission, where the
+  // round being entered has its own intro card.
+  reveal: ['board', 'intermission', 'roundIntro', 'final'],
   wager: ['reveal'],
   intermission: ['roundIntro', 'board'],
   final: [],

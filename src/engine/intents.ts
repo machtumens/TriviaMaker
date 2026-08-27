@@ -171,10 +171,21 @@ export function applyIntent(state: SessionState, intent: Intent): SessionState {
       // merge would make "delete a key" impossible to express as an intent.
       return { ...state, styleState: intent.nextStyleState }
 
-    case 'advanceRound':
+    case 'advanceRound': {
+      // T2.2-L1 layer B: belt-and-braces bound. `session.ts`'s
+      // `advanceToNextRound` (layer A) is expected to prevent this from ever
+      // being reached out of range in normal operation — this no-op is the
+      // defensive backstop so a future direct-dispatch caller can never push
+      // `roundIndex` past the last valid `program.rounds` index. An
+      // out-of-range index does not fail here: it fails on the NEXT
+      // `broadcastState`, which is a live-show-ending crash a frame after the
+      // click rather than a rejected click.
+      const nextIndex = state.roundIndex + 1
+      if (nextIndex > state.config.program.rounds.length - 1) return { ...state }
       // Clearing `styleState` here is the engine-level safety net against one
       // round's style state bleeding into the next (see `SessionState`).
-      return { ...state, roundIndex: state.roundIndex + 1, styleState: {} }
+      return { ...state, roundIndex: nextIndex, styleState: {} }
+    }
 
     default:
       return assertNever(intent)
