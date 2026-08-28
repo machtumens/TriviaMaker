@@ -7,7 +7,7 @@ date: 24-08-26
 ---
 # TriviaMaker Engine - All Tests
 
-Last updated: 2026-08-27 (T2.1 contract revision — same 12 files, new test blocks for styleState/setStyleState/advanceRound; 1 new Hybrid-tier gate added)
+Last updated: 2026-08-28 (T2.2 multi-round shows — same 12 files, new test blocks for the round boundary; DOM harness gap confirmed genuine; standing weak-assertion review question added)
 
 Attach this file first when the task involves testing, verification, or test debugging.
 
@@ -97,11 +97,11 @@ the T1 execute report and the independent EVL confirmation run both used.
 | Plugin preflight | `src/registry/validateConfigPlugins.test.ts` | unregistered-plugin-key errors are specific, name alternatives |
 | T1 bootstrap | `src/registry/bootstrap.test.ts` | T1 plugin set registers cleanly; `validateConfigPluginsT1` preflight |
 | Phase machine | `src/engine/phase.test.ts` | phase transition table correctness |
-| Intents | `src/engine/intents.test.ts` | `applyIntent` behaviour per `Intent` variant. **T2.1**: `setStyleState`/`advanceRound` cases added; `EXPECTED` union-completeness list (checked against `INTENT_TOUCHED_KEYS`) extended — this is the guard that caught the plan's own missing `EXPECTED` entries (Plan Deviation #3) |
-| Event log + undo | `src/engine/log.test.ts` | batch-union snapshot (L2a), reversal-without-deletion, depth bounding, empty-log no-op, 2/3-intent host-action batches. **T2.1** blocks (f)/(g): a `setStyleState` batch fully reversed by one `undo()`; an `advanceRound` batch reversing BOTH `roundIndex` AND `styleState` in one `undo()` — the first two-key `INTENT_TOUCHED_KEYS` row in the codebase |
-| Session | `src/engine/session.test.ts` | `dispatchHostAction`, `resolveRoundContent`. **T2.1**: +1 assertion that `createSession`'s returned `SessionState.styleState` is `{}` |
+| Intents | `src/engine/intents.test.ts` | `applyIntent` behaviour per `Intent` variant. **T2.1**: `setStyleState`/`advanceRound` cases added; `EXPECTED` union-completeness list (checked against `INTENT_TOUCHED_KEYS`) extended — this is the guard that caught the plan's own missing `EXPECTED` entries (Plan Deviation #3). **T2.2**: `advanceRound` now bounded — a `CONFIG_MULTI_ROUND` fixture added; two existing blocks updated to use it (the default 1-round config now makes a plain advance a no-op); new boundary no-op test (item 19), whose second assertion was found vacuous (comparing `{}` to the same `{}` reference) and strengthened with a populated `styleState` fixture — see §Weak-Assertion Review Question below |
+| Event log + undo | `src/engine/log.test.ts` | batch-union snapshot (L2a), reversal-without-deletion, depth bounding, empty-log no-op, 2/3-intent host-action batches. **T2.1** blocks (f)/(g): a `setStyleState` batch fully reversed by one `undo()`; an `advanceRound` batch reversing BOTH `roundIndex` AND `styleState` in one `undo()` — the first two-key `INTENT_TOUCHED_KEYS` row in the codebase. **T2.2** block (h): a 5-intent round-boundary batch (eliminate + 2×score-reset + advanceRound + setPhase) reverses in exactly one `undo()` — the direct regression guard for "one host action = one undo," and the first place a batch dispatches the SAME intent type more than once (`minTeams` multi-round skip) |
+| Session | `src/engine/session.test.ts` | `dispatchHostAction`, `resolveRoundContent`. **T2.1**: +1 assertion that `createSession`'s returned `SessionState.styleState` is `{}`. **T2.2**: new `advanceToNextRound` branch-matrix block (13+ scenarios) — phase guard, last-round guard, `eliminateLowest` tie handling, `carryScores` reset, `minTeams` cascade including full-cascade show-end, entry-phase targeting |
 | Broadcast/redaction | `src/engine/broadcast.test.ts` | per-channel redaction by VALUE (not key name), Set→array serialisation, derived `cells[].consumed`. **T2.1**: `styleState` JSON round-trip (nested array + nested object, deep-equal after `JSON.parse(JSON.stringify(...))`); a control assertion proving a `Set` collapses to `{}`; re-run of the value-based sentinel leak scan with a populated `styleState`. Fixture `buildBoard` also gained `meta: { pointLadder }` — required after the D3 fix moved `pointLadder`'s source of truth to `board.meta` (see Plan Deviations #2 in the T2.1 execute report) |
-| Integration | `src/engine/host-manual-round.test.ts` | a full host-manual round through phase+intents+log+session together. **T2.1**: its `gridStyle.buildBoard` call site gained the required 3rd `state` argument (Plan Deviation #1 — the plan wrongly called this file VERIFY-ONLY) |
+| Integration | `src/engine/host-manual-round.test.ts` | a full host-manual round through phase+intents+log+session together. **T2.1**: its `gridStyle.buildBoard` call site gained the required 3rd `state` argument (Plan Deviation #1 — the plan wrongly called this file VERIFY-ONLY). **T2.2**: extended to 2 rounds, proving `demo-t1`-shaped round 2 is reachable end to end through `reveal -> roundIntro -> board`; a second, independent block imports the REAL `presets/demo-t1.ts` and asserts both rounds' content resolves without throwing |
 | Style plugin | `src/styles/grid.test.ts` | `grid.buildBoard`, `availableQuestions`. **T2.1**: both `buildBoard` call sites gained a 3rd argument |
 | Scoring plugin | `src/scoring/flat.test.ts` | pure `ScoreDelta[]` output, no `-0` regression. **T2.1**: hand-built `SessionState` literal gained `styleState: {}` |
 | Transport | `src/transport/local.test.ts` | host-token 401s, path-traversal 403s, SSE retained-frame-on-connect |
@@ -150,6 +150,36 @@ next UPDATE PROCESS pass, not a settled "never migrate" decision.
 5. Manual gates — **required** before any live event. Nothing automated substitutes for
    these; see "Manual Gates" below.
 
+## Weak-Assertion Review Question (standing check — new 2026-08-28)
+
+This project has now shipped the SAME class of vacuous test **twice**, caught both times by an
+agent reading critically rather than by any automated gate:
+
+1. **T1** — a redaction test scanned the serialised broadcast payload by KEY NAME, not by value.
+   It looked correct (the config also has a legitimate `copy.answer` field) but would have missed
+   a genuine answer-key leak through `content.banks` for 5 PVL cycles. See §What Must Always Have
+   a Test above.
+2. **T2.2** — `intents.test.ts` item 19's second assertion compared `after.styleState` to
+   `before.styleState` on the DEFAULT fixture, where both were the SAME empty-object reference
+   (`{}`). It would have passed even if a rejected `advanceRound` incorrectly cleared a populated
+   `styleState` — the assertion was structurally incapable of catching the bug it named. Fixed by
+   using a POPULATED `styleState` fixture instead (see the intents.test.ts row above).
+
+**Before considering any new or modified assertion done, ask: "would this assertion still pass if
+the behaviour it names were broken?"** Concretely:
+
+- Comparing a value to itself (same object reference, or two literals guaranteed equal
+  regardless of the code path under test) is not a test — it is decoration.
+- A no-op/rejection/rejected-branch test needs a fixture where the "nothing changed" claim is
+  actually falsifiable (i.e., something WAS present beforehand that could have been wrongly
+  cleared, mutated, or added).
+- A redaction/leak test must scan by VALUE, not by field/key name — see §What Must Always Have a
+  Test.
+
+Apply this question deliberately during every future PVL (plan review) and EVL (execute
+verification) pass for this project, not just when a defect happens to surface. Treat it as a
+standing item in the weak-test scan step of EVL, not a one-off learning.
+
 ## What Must Always Have a Test
 
 - `deepMerge` / `resolveConfig` — load-bearing. If they break, every customisation layer
@@ -186,12 +216,24 @@ the phase report — an agent judgment call alone does not satisfy these rows."*
 | Host token requirement visibly confirmed via a browser DevTools network tab | PARTIALLY DONE — raw-HTTP 401 confirmed for both missing and forged tokens | Open the host controller in a browser, inspect the actual network request in DevTools |
 | Full pre-show dry run on the real venue network (SPEC AC#11) | NOT DONE | Run a complete show end-to-end on the actual venue LAN before a live event |
 | `INTENT_EVENT_NAMES` diff review — is `setStyleState → phase.changed` an acceptable 7th fallback? (T2.1, T2 SPEC AC#12) | NOT DONE — numbers computed and independently confirmed twice (19 members, unreachable 12→11, fallbacks 6→7); the judgment call itself is not agent-resolvable | A human reviewer reads the `INTENT_EVENT_NAMES` diff and records sign-off in the phase report |
+| T2.2 host/stage browser click-through — Next Round / Eliminate-tie buttons / End Show / Continue / `final` banner on both host and stage | NOT DONE — `server.ts`'s command layer was live-verified twice via direct HTTP drives (96/96 adversarial checks pass), but the DOM rendering itself has zero automated coverage; no DOM harness exists to close it | A human opens `npm run show` in a browser and works through the 5-step checklist in `gameshow-engine-t2.2-evl-iteration-001_REPORT_27-08-26.md` §STEP 5, recording the outcome in the phase report |
 
 A plan/phase with any of these still open is `Keep in active/testing`, not archivable — see
 `planning/all-planning.md`.
 
 ## Known Gaps
 
+- **No DOM/browser test harness exists in this repo at all (confirmed genuine, 2026-08-27, T2.2
+  EVL).** `package.json` `devDependencies` contains only `@types/node` and `vite` — no jsdom,
+  happy-dom, Playwright, Puppeteer, or Testing Library. No test file imports
+  `src/host/main.ts` or `src/stage/main.ts`. This is not an oversight in T2.2 specifically — it is
+  a repo-wide tooling absence that makes every host/stage render branch (button labels, tie
+  buttons, phase-gated banners) permanently Agent-Probe/Manual-only until a harness is adopted.
+  Confirmed empirically, not inferred: EVL grepped `package.json` and the whole test suite for
+  DOM-testing imports and found none. The gap will widen every phase that adds host/stage UI
+  branches (T2.3's five styles each need their own render logic). Whether to adopt jsdom or
+  Playwright is a cross-phase tooling decision — see the backlog note
+  (`process/general-plans/backlog/gameshow-engine-dom-test-harness.md`).
 - **No CI.** `npm run typecheck && npm test` (and the full gate sequence) is still a
   local-only check. No `.github/` workflow exists. Recommended near-term follow-up.
 - **Import isolation is source-level only.** `check-stage-host-isolation.mjs` reads import

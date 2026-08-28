@@ -7,7 +7,7 @@ date: 24-08-26
 ---
 # TriviaMaker Engine - All Context
 
-Last updated: 2026-08-27 (T2.1 contract revision landed, WITH_GAPS — see Repository Structure / Outstanding Work below)
+Last updated: 2026-08-28 (T2.2 multi-round shows landed, CLEAN automated EVL, human click-through still open — see Repository Structure / Outstanding Work below)
 
 This file is the root context entrypoint for the repo.
 
@@ -182,6 +182,11 @@ When durable project knowledge changes:
                                        T2.1: INTENT_EVENT_NAMES +2 rows (1 fallback, 1 exact match) -- see D5 correction below
       session.ts / session.test.ts    dispatchHostAction, resolveRoundContent, session launch/snapshot.
                                        T2.1: createSession initialises styleState: {}
+                                       T2.2: +advanceToNextRound(state, input?): Intent[] -- the round-boundary
+                                       decision function (elimination/tie-handling, carryScores reset,
+                                       minTeams round-skip cascade, intermission/roundIntro/board targeting),
+                                       same trust level as resolveAnswer. +AdvanceRoundInput type
+                                       ({ eliminateTeamId?: string })
       broadcast.ts / broadcast.test.ts  broadcastState -- the ONLY call site that redacts + serialises state per channel.
                                        T2.1: retired `as GridStyle` cast (Defect D3); pointLadder now read off
                                        `board.meta`, not round.style -- see style-author obligation below.
@@ -200,12 +205,20 @@ When durable project knowledge changes:
     host/
       index.html, main.ts             host controller -- select/arm/pause/resume/award/undo/next
     server.ts                        glue entrypoint; boots local transport + demo-t1 preset (npm run show)
+                                      T2.2: intentsForCommand gained 'advanceRound' (payload:
+                                      { eliminateTeamId?: string }, delegates to advanceToNextRound) and
+                                      'continue' (no payload; leaves roundIntro/intermission). endRound/next
+                                      unchanged. No new dispatch mechanism -- both route through the existing
+                                      single dispatchHostAction call site.
   scripts/
     run-tests.mjs             discovers and runs every src/**/*.test.ts in one process (no test framework)
     check-stage-host-isolation.mjs   static import-boundary check: stage/ must never import host-only modules
   presets/
     school-assembly.ts       worked 3-round example (grid -> double points -> wager final) -- untouched by T1
-    demo-t1.ts               T1 demo preset (two rounds; only round 1 is currently playable -- see Outstanding Work)
+    demo-t1.ts               T1 demo preset. T2.2: BOTH rounds now playable start to finish (doc-comment
+                              only change -- exported config byte-identical); round 2's board rebuild,
+                              per-round overrides (point ladder, questionSec), and the reveal -> roundIntro
+                              boundary are all live-verified against the real server (T2.2 EVL Drive 1)
   process/                   agent harness (this tree)
 ```
 
@@ -225,12 +238,27 @@ for the full process-learning record. Task folder is **kept active**, not archiv
 Hybrid-tier gate (`INTENT_EVENT_NAMES` diff, T2 SPEC AC#12) needs human sign-off, not agent
 judgment (see Outstanding Work below).
 
-Still not built: T2.2 (multi-round orchestration, `advanceRound` dispatch wiring), T2.3
-(remaining 5 styles, grid Defect D1 fix), T2.4/T2.5 (streak/lifeline write paths), any input
-plugin (buzzer/network), persistence. See
-`process/general-plans/active/gameshow-engine_24-08-26/` for the T1 plan/report/closeout and
-`process/general-plans/active/gameshow-engine-t2_24-08-26/` for T2's -- both task folders are
-**kept active**, not archived (see Outstanding Work below).
+**T2.2 (multi-round shows) landed 2026-08-27, automated-CLEAN.** 12 files modified, 0
+created/deleted. `advanceRound` is now bounded at two independent layers (session.ts dispatch-time
+throw + intents.ts apply-time no-op backstop), the round boundary (elimination, `carryScores`
+reset, `minTeams` round-skip cascade, entry-phase targeting) is one atomic `dispatchHostAction`
+batch reversible by one `undo()`, and `PHASE_TRANSITIONS` gained the one edge this required
+(`reveal -> roundIntro`). `src/config/types.ts` and `src/registry/index.ts` untouched. EVL ran
+96/96 independent adversarial checks with zero failures and confirmed CLEAN. VALIDATE was SKIPPED
+for this phase too (T2.1 precedent). Task folder is **kept active**, not archived -- the plan's own
+Phase Completion Rules require a human browser click-through before VERIFIED, and the execute-agent
+explicitly declined to claim that gate (see Outstanding Work below). See
+`process/general-plans/active/gameshow-engine-t2.2_27-08-26/gameshow-engine-t2.2_CLOSEOUT_27-08-26.md`
+for the full process-learning record, including the SECOND instance of a vacuous test assertion
+(`tests/all-tests.md` §Weak-Assertion Review Question) and the eliminated-team score-display
+product question (backlog).
+
+Still not built: T2.3 (remaining 5 styles, grid Defect D1 fix), T2.4/T2.5 (streak/lifeline write
+paths), any input plugin (buzzer/network), persistence. See
+`process/general-plans/active/gameshow-engine_24-08-26/` for the T1 plan/report/closeout,
+`process/general-plans/active/gameshow-engine-t2_24-08-26/` for T2's, and
+`process/general-plans/active/gameshow-engine-t2.2_27-08-26/` for T2.2's -- all three task folders
+are **kept active**, not archived (see Outstanding Work below).
 
 ## Technology Stack
 
@@ -337,6 +365,41 @@ numbers. Explicit error handling. Immutable updates.
   (`setStyleState → phase.changed`, new fallback). The T2.1 plan's original stated baseline
   (11→10 unreachable) was wrong by one; corrected via EVL, independently recomputed twice.
 
+**T2.2 round-boundary shape (new 2026-08-27 — read before touching `session.ts`'s
+`advanceToNextRound`, `server.ts`'s `advanceRound`/`continue` cases, or a `Round`'s
+`intro`/`intermissionAfter`/`eliminateLowest`/`minTeams` fields):**
+
+- **`advanceRound` is bounded at two independent layers.** Layer A (dispatch-time,
+  `session.ts`'s `advanceToNextRound`): throws before any intent is built if
+  `state.roundIndex >= program.rounds.length - 1` — no `dispatchHostAction` call happens, no
+  `seq` is consumed. Layer B (apply-time, `intents.ts`'s `applyIntent` `advanceRound` case):
+  no-ops (`return { ...state }`) if the next index would exceed the last valid round. Layer B
+  is the defensive backstop for any future caller that reaches `applyIntent` directly. Both
+  layers independently confirmed adversarially by EVL (no compounding on repeated out-of-range
+  calls). This closes backlog item 1 from `gameshow-engine-t2.2-blockers.md`.
+- **One host click = one batch = one `undo()`, even for a multi-effect round boundary.**
+  `advanceToNextRound` returns a single `Intent[]` that can contain elimination
+  (`Round.eliminateLowest`, ties rejected unless `input.eliminateTeamId` names a tied
+  candidate), a score-reset (`program.carryScores: false`, one `awardPoints` per non-zero-score
+  team — **including a team eliminated in the SAME batch**, see the eliminated-team score
+  backlog decision below), one or more `advanceRound` intents (`Round.minTeams` skips rounds
+  forward, cascading to `setPhase('final')` with **zero** `advanceRound` intents if every
+  remaining round fails its `minTeams` check), and the final `setPhase` targeting
+  `intermission`/`roundIntro`/`board`. `server.ts`'s `'advanceRound'` command delegates to this
+  function directly; `'continue'` is a separate, no-payload command handling only
+  `roundIntro`/`intermission` exit. `'endRound'`/`'next'` are unchanged and never call
+  `advanceRound`.
+- **`PHASE_TRANSITIONS` gained exactly one edge**: `reveal -> roundIntro` (needed when the
+  just-completed round has no `intermissionAfter` but the next round has `intro.enabled`). Every
+  other edge this design needs already existed — verified against the full table before adding
+  this one (T2.2-L7).
+- **`CopyStrings` reuse, not new fields** (`src/config/types.ts` stayed frozen this phase):
+  `copy.host.next` covers both "next question" and "Next Round"; `copy.host.endRound` covers
+  both "end this round" and "End Show" (shown only on the last round); `copy.host.skip` (unused
+  before T2.2) is reused for the `roundIntro`/`intermission` "Continue" control. Disclosed
+  compromise, not a clean host-facing UX — a future phase with `types.ts` in scope should add
+  dedicated `nextRound`/`endShow`/`continue` copy fields.
+
 ## Environment and Configuration
 
 No environment variables and no secrets at present — the engine is local-first and has no
@@ -349,19 +412,26 @@ under `presets/`, versioned in git.
 ## Scan Metadata
 
 - Scanned: 2026-08-24 (T0 baseline) / updated 2026-08-24 (T1 engine core landed) / updated
-  2026-08-27 (T2.1 contract revision landed, WITH_GAPS)
+  2026-08-27 (T2.1 contract revision landed, WITH_GAPS) / updated 2026-08-28 (T2.2 multi-round
+  shows landed, automated-CLEAN)
 - Method: vc-setup Flow A (new project) for T0; UPDATE PROCESS reconciliation against the
   T1 execute report + PLAN + SPEC for T1's update; UPDATE PROCESS reconciliation against the
-  T2.1 EXECUTE report + EVL confirmation report + PLAN for this update (no direct re-read of
-  every source file — see the EVL report's own independently re-run gate evidence)
+  T2.1 EXECUTE report + EVL confirmation report + PLAN for T2.1's update; UPDATE PROCESS
+  reconciliation against the T2.2 EXECUTE report + EVL confirmation report + PLAN for this update
+  (no direct re-read of every source file — spot-verified `phase.ts`, `session.ts`, `server.ts`
+  command names against the EVL report's claims)
 - Source files: 6 TypeScript files at T0 (~1400 lines); 27 new files added by T1; 13 files
-  modified by T2.1, 0 created/deleted (see Repository Structure above)
+  modified by T2.1; 12 files modified by T2.2, 0 created/deleted each phase (see Repository
+  Structure above)
 - Verified: full gate sequence (`npm run typecheck && npm test && node scripts/check-stage-host-isolation.mjs && npm run build`)
   green from a clean `dist/` at T1 EXECUTE + independent EVL confirmation run; 12 test files
   pass. T1: 3 manual gates remain unconfirmed by a human. T2.1: all 4 automated gates
   independently re-run green by EVL (`gameshow-engine-t2-evl-iteration-001_REPORT_27-08-26.md`);
-  1 Hybrid-tier gate (`INTENT_EVENT_NAMES` diff, T2 SPEC AC#12) remains unconfirmed by a human —
-  see Outstanding Work.
+  1 Hybrid-tier gate (`INTENT_EVENT_NAMES` diff, T2 SPEC AC#12) remains unconfirmed by a human.
+  T2.2: all 4 automated gates independently re-run green by EVL, plus 96/96 independent
+  adversarial checks
+  (`gameshow-engine-t2.2-evl-iteration-001_REPORT_27-08-26.md`); the plan's own human
+  browser click-through gate remains unconfirmed — see Outstanding Work.
 
 ## Source References
 
@@ -400,9 +470,9 @@ making operational changes.
 - No `SessionState` slot for style-owned persistent state (blocks a `tictac`-style plugin). —
   **RESOLVED**: `SessionState.styleState`.
 - `StylePlugin.buildBoard` does not receive `state`. — **RESOLVED**: 3rd `state` param, required.
-- No `Intent` variant touches `roundIndex` — T1 could only play round 1. — **RESOLVED
-  mechanically**: `advanceRound` intent exists and is undo-safe, but has **no live dispatch call
-  site yet** (T2.2 must wire it) and is currently **unbounded** — see Known risks below.
+- No `Intent` variant touches `roundIndex` — T1 could only play round 1. — **RESOLVED**: `advanceRound`
+  is now bounded at two layers and has a live dispatch site (`session.ts`'s `advanceToNextRound`,
+  wired to `server.ts`'s `advanceRound`/`continue` commands, landed T2.2 2026-08-27).
 - `GameEventName` closed union forcing imprecise fallbacks. — **PARTIALLY RESOLVED**: one more
   fallback added (`setStyleState`, 6→7), one more previously-unreachable member closed
   (`advanceRound → round.started`, unreachable 12→11). Net direction is the same tradeoff as
@@ -430,6 +500,14 @@ is now required for audience point-value labels — omission fails silently (bla
   agent judgment. Full detail:
   `process/general-plans/active/gameshow-engine-t2_24-08-26/` (task folder kept active, not
   archived, until that sign-off lands).
+- **T2.2 (multi-round shows) — CODE DONE, all 4 automated gates green, EVL-confirmed
+  independently (96/96 adversarial checks). NOT yet VERIFIED** — the plan's own Phase Completion
+  Rules require a human browser click-through (host UI reveal-phase controls, tie buttons, the
+  `final` banner on host + stage), and the execute-agent explicitly declined to claim that gate.
+  This is the CLEAN-vs-VERIFIED distinction: EVL's `closeout_classification: CLEAN` reflects the
+  automated layer only; VERIFIED additionally requires the human gate below. Full detail:
+  `process/general-plans/active/gameshow-engine-t2.2_27-08-26/` (task folder kept active, not
+  archived, until that click-through lands).
 - **Manual gates still open (need a human, not more code):**
   1. Projector legibility from the back of a room (item 23, T1) — needs a real external display.
   2. Host token visibly required, confirmed via a browser DevTools network tab (item 26, T1) —
@@ -438,10 +516,9 @@ is now required for audience point-value labels — omission fails silently (bla
   4. `INTENT_EVENT_NAMES` diff human sign-off (T2.1, T2 SPEC AC#12) — is `setStyleState →
      phase.changed` an acceptable 7th fallback? Numbers are computed and correct (see D5
      correction above); the judgment call is not resolvable by any agent.
-- **T2.2 (multi-round orchestration)** — next up. Must bound `advanceRound` before adding a
-  live "next round" dispatch site (see Known risks below) — genuinely unreachable today (no
-  dispatch call site exists anywhere in application code, confirmed by both execute-agent and
-  EVL), but becomes reachable the moment T2.2 wires one in.
+  5. T2.2's host/stage browser click-through (5-step checklist in the T2.2 EVL report §STEP 5) —
+     no DOM/browser test harness exists in this repo to automate it; see the DOM harness backlog
+     decision below.
 - **T2.3 (remaining 5 styles: list/trivia/wheel/tictac/hangman, + grid Defect D1 fix)** —
   blocked on T2.1 (now unblocked). Read `CUSTOMIZATION.md` §Writing a style plugin first.
 - **T2.4 (streak)/T2.5 (lifelines)** — `attemptsUsed`/`TeamState.streak`/
@@ -466,16 +543,29 @@ is now required for audience point-value labels — omission fails silently (bla
 - Host token comparison (`local.ts`) is not constant-time — accepted for T1's local-LAN-only
   threat model (plan Open Item 4); must be revisited if this transport is ever exposed beyond
   the venue LAN.
-- **`advanceRound` is unbounded** (new 2026-08-27, T2.1). `roundIndex + 1` can exceed
-  `program.rounds.length - 1`; the show then dies on the NEXT `broadcastState` call, not at the
-  intent itself. Confirmed genuinely unreachable today (no live dispatch call site anywhere in
-  application code) but **T2.2 MUST bound it** before wiring a real "next round" host action.
-  Tracked in backlog — see `process/general-plans/backlog/`.
+- **`advanceRound` unbounded-ness — RESOLVED 2026-08-27, T2.2.** Bounded at two independent
+  layers (session.ts dispatch-time throw, intents.ts apply-time no-op backstop); 96/96
+  adversarial EVL checks confirm no compounding on repeated out-of-range calls. Backlog item 1
+  closed.
 - **`setStyleState` adopts the caller's object by reference** (new 2026-08-27, T2.1). A caller
   that retains and later mutates the object it dispatched corrupts both live `styleState` AND
   the already-logged undo audit entry (same reference, not a snapshot). Reproduced by EVL, not
   yet guarded by a test. Recommended fix: a defensive clone in `applyIntent`'s `setStyleState`
   case — tracked in backlog.
+- **`carryScores: false` zeroes the score of a team eliminated in the SAME batch** (new
+  2026-08-27, T2.2). `advanceToNextRound`'s score-reset loop iterates `state.teams` unfiltered,
+  so a team simultaneously eliminated by `Round.eliminateLowest` in the same batch ends the
+  batch at `score: 0, eliminated: true` — the finale podium then shows an eliminated team's score
+  as 0, not the score they actually earned. Implemented exactly as the plan specifies (T2.2-L4);
+  empirically confirmed by EVL (score 10 → 0). Whether this is the desired host-facing behavior
+  is a product decision, not an engineering defect — see the backlog note. Only bites shows that
+  use `eliminateLowest`.
+- **No DOM/browser test harness exists in this repo** (confirmed 2026-08-27, T2.2 EVL). No
+  jsdom, happy-dom, Playwright, Puppeteer, or Testing Library in `package.json`. `src/host/main.ts`
+  and `src/stage/main.ts` render branches (button labels, tie buttons, the `final` banner) have
+  zero automated coverage and can only be verified by a human browser click-through. This is a
+  genuine repo-wide tooling gap, not an oversight in any one phase — the gap will widen as T2.3
+  adds five more styles with their own render branches. See the DOM harness backlog decision.
 - **`styleState`'s unredacted-broadcast risk (R3) is a discipline requirement, not a structural
   guarantee** — no automated scan for answer-derived text in `styleState`'s contents.
   Currently dormant (styleState isn't on the wire at all — invariant 5), but becomes live the
