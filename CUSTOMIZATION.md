@@ -125,11 +125,8 @@ should fail in the green room, not on stage.
 
 ## Writing a style plugin
 
-*(Added 27-08-26, post-T2.1. Reference this before authoring `list`/`trivia`/
-`wheel`/`tictac`/`hangman` — the T2.3 backlog.)*
-
-The `StylePlugin<O>` interface, as of the T2.1 contract revision
-(`src/registry/index.ts`):
+Read this before writing a new board format. The `StylePlugin<O>` interface
+lives in `src/registry/index.ts`:
 
 ```ts
 export interface StylePlugin<O = Record<string, unknown>> {
@@ -144,8 +141,7 @@ export interface StylePlugin<O = Record<string, unknown>> {
 }
 ```
 
-`buildBoard`'s third parameter, `state: SessionState`, was added in T2.1. It is
-READ-ONLY context (notably `state.styleState`) for styles that need to derive
+`buildBoard`'s third parameter, `state`, is READ-ONLY context (notably `state.styleState`) for styles that need to derive
 per-cell data from live session state — a style that doesn't need this (like
 `grid`) still must accept the parameter for interface compliance, even unused
 (convention: name it `_state`).
@@ -153,7 +149,7 @@ per-cell data from live session state — a style that doesn't need this (like
 ### The `board.meta.pointLadder` obligation (REQUIRED — silent-failure trap)
 
 **If your style wants audience-visible point-value labels, `buildBoard` MUST
-publish `pointLadder` into the returned `BoardModel.meta`.** As of T2.1,
+publish `pointLadder` into the returned `BoardModel.meta`.**
 `pointLadder` is read by `broadcast.ts`'s `withPointValueLabels` off
 `board.meta.pointLadder`, not off the round's style config. Look at
 `gridStyle.buildBoard` in `src/styles/grid.ts` for the pattern — its `meta`
@@ -162,21 +158,21 @@ board-level fields.
 
 **Consequence of omitting it: audience point-value labels go blank SILENTLY.**
 No error, no warning — `withPointValueLabels` just renders empty strings. This
-is not hypothetical: T2.1's own EVL confirmation run reproduced it by
-registering a deliberately non-compliant style. There is currently no
-automated guard for this (see T2.1 Test Infra Gaps) — get it right by hand.
+has been reproduced by registering a deliberately non-compliant style. There is
+no automated guard for it, so get it right by hand.
 
 ### `styleState`: JSON-safe values only
 
-`SessionState.styleState: Record<string, unknown>` is your style's opaque
-scratch space. Contents MUST be JSON-safe — plain objects, arrays, strings,
-numbers, booleans, `null`. **Never a `Set` or a `Map`.** `broadcast.ts`
-explicitly converts `styleState` for the wire, and a `Set`/`Map` silently
-collapses to `{}` on serialisation — confirmed by T2.1's EVL run. This exact
-class of bug already shipped once in T1 (a `ReadonlySet` stored where a
-JSON-safe value was required). If your style needs set/map-like semantics,
-store an array or a plain keyed object instead and reconstruct the richer
-shape in memory where you read it.
+`SessionState.styleState: Record<string, JsonValue>` is your style's opaque
+scratch space. Contents must be JSON-safe — plain objects, arrays, strings,
+numbers, booleans, `null`.
+
+The `JsonValue` type enforces this: storing a `Set` or a `Map` is a compile
+error. That is deliberate. A `Set` typechecks fine against `unknown` and then
+silently serialises to `{}`, which is how a `ReadonlySet` once shipped a bug
+where consumed tiles would not render. If your style needs set or map
+semantics, store an array or a plain keyed object and rebuild the richer shape
+in memory where you read it.
 
 ### How a style writes state — the `setStyleState` intent, never mutation
 
@@ -189,17 +185,17 @@ onResolved(state, correct) {
 }
 ```
 
-This keeps one host action reversible by one `undo()` press (Design Lock L2a
-from T1) — a direct mutation is invisible to the snapshot-diff undo in
-`log.ts` and breaks that guarantee silently.
+This keeps one host action reversible by one `undo()` press. `log.ts`
+snapshots the union of touched keys before applying a batch; a direct mutation
+happens outside that snapshot, so undo silently stops restoring it.
 
 ### Caveat: `setStyleState` adopts your object by reference
 
 `applyIntent` assigns `intent.nextStyleState` directly into `state.styleState`,
 and the same object reference is also retained in the undo log's audit entry.
 **Do not retain and later mutate an object you have already dispatched** — if
-you do, you corrupt both live state and the logged audit record at once (T2.1
-EVL reproduced this corruption path). Always hand over a freshly-built object
+you do, you corrupt both live state and the logged audit record at once. Always
+hand over a freshly-built object
 (e.g. spread `{ ...state.styleState, ... }` into a new object each time, as
 shown above) rather than reusing and mutating a held reference.
 
@@ -307,8 +303,8 @@ a scoreboard LED wall, whatever.
    mutate the live board.
 3. **Scoring plugins are pure.** Impurity breaks undo silently.
 4. **Answers are redacted at the transport boundary**, not in the view layer.
-5. **`styleState` is server-only; it does not go on the wire.** *(Locked
-   27-08-26, post-T2.1 EVL.)* `styleState` appears nowhere in
+5. **`styleState` is server-only; it does not go on the wire.**
+   `styleState` appears nowhere in
    `src/engine/broadcast.ts` — style-derived data reaches clients only via
    `board.meta`/`board.cells[].meta`, which `buildBoard` constructs and
    `broadcastState` redacts. This is deliberate, not an oversight or a gap to
@@ -325,30 +321,48 @@ a scoreboard LED wall, whatever.
 ## Files
 
 ```
-src/config/types.ts        complete schema — the customisation surface
-src/config/defaults.ts     base layer; safe-for-live-event defaults
-src/config/resolve.ts      cascade, theme→CSS vars, redaction
-src/config/resolve.test.ts self-check for the cascade  (npm test)
-src/registry/index.ts      plugin interfaces + registry + validation
-presets/school-assembly.ts worked 3-round example
+src/config/types.ts     complete schema — the customisation surface
+src/config/defaults.ts  base layer; safe-for-live-event defaults
+src/config/resolve.ts   the cascade, theme→CSS vars, question redaction
+src/registry/index.ts   plugin interfaces, registry, preflight validation
+src/engine/phase.ts     the transition table
+src/engine/intents.ts   intent application and the touched-key map
+src/engine/log.ts       event log and undo
+src/engine/session.ts   host actions, content resolution, adjudication
+src/engine/broadcast.ts the one place payloads are built and redacted
+src/styles/grid.ts      the worked style plugin
+src/scoring/flat.ts     the worked scoring plugin
+src/transport/local.ts  HTTP server, SSE down, POST up
 ```
 
-`npm test` · `npm run typecheck`
+Every `*.ts` file has a `*.test.ts` beside it where it carries logic.
+
+```bash
+npm run typecheck
+npm test
+node scripts/check-stage-host-isolation.mjs
+```
 
 ---
 
-## Build order
+## What is built, and what is not
 
-The schema is the contract; everything else plugs into it.
+Built and playable: the `grid` style, `flat` scoring, the `local` transport, the
+phase machine, intents with event-log undo, multi-round programs with intros,
+intermissions, score carry and elimination, the stage view and the host
+controller.
 
-1. **`grid` style + `flat` scoring + `local` transport** — one round, end to end
-2. Phase machine (`lobby → board → reading → armed → locked → adjudicate → reveal`)
-3. Intent application + event log + **undo**
-4. Stage view driven purely by `themeToCssVars()`
-5. Host controller as a separate route (never a second tab — one alt-tab on stage
-   and the answer key is on the projector)
-6. `keyboard` input plugin — hardware buzzers, ~6 lines, may be all you need
-7. `network` input + join codes + compensated buzz arbitration
-8. Remaining styles, lifelines, special tiles
+Modelled in the schema but with no engine behind them yet — a config can set
+these, and nothing will happen:
 
-Steps 1–5 are a complete, usable game show. Everything after is depth.
+- the other five styles (`list`, `trivia`, `wheel`, `tictac`, `hangman`)
+- `speedWeighted`, `multiplier`, streak and comeback scoring, and wagers
+- lifelines and special tiles
+- every input plugin: buzzers, player devices, join codes
+- `integration.hooks` and webhooks
+- `GridStyle.selection` — `sequential` and `random` currently behave as
+  `freePick`
+
+`flat` scoring warns on the console when it is handed a bonus rule it does not
+implement. The rest are silent, so check this list before authoring a show that
+depends on one.
