@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TriviaMaker — live demo</title>
+    <style>
+      /* Every value below is a fallback. The real values arrive as CSS custom
+         properties from the theme cascade on the first broadcast, so a preset
+         restyles the whole projector without touching this file. */
+      :root {
+        --color-bg: #0b1020;
+        --color-bg-elevated: #151c34;
+        --color-text: #f5f7ff;
+        --color-text-muted: #93a0c4;
+        --color-accent: #ffc53d;
+        --color-tile: #1b2547;
+        --color-tile-consumed: #12182c;
+        --color-tile-text: #ffc53d;
+        --color-correct: #3ddc84;
+        --color-scrim: rgba(4, 8, 20, 0.88);
+        --type-display: Impact, system-ui, sans-serif;
+        --type-body: system-ui, sans-serif;
+        --type-base-size: 20;
+        --type-scale-tile: 3.2;
+        --type-scale-question: 3.6;
+        --type-scale-category: 1.6;
+        --type-scale-score: 2;
+        --type-uppercase-categories: uppercase;
+        --space-board-gap: 10;
+        --space-screen-padding: 48;
+        --radius-tile: 10;
+        --radius-card: 16;
+        --shadow-tile: 0 4px 0 rgba(0, 0, 0, 0.35);
+
+        --unit: 1px;
+        --base: calc(var(--type-base-size) * 1px);
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--type-body);
+        overflow: hidden;
+      }
+
+      #root {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: calc(var(--base) * 0.8);
+        height: 100%;
+        padding: calc(var(--space-screen-padding) * 1px);
+      }
+
+      .round-bar {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--base);
+        font-family: var(--type-display);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--color-accent);
+        font-size: calc(var(--base) * var(--type-scale-category));
+      }
+      .round-bar .subtitle { color: var(--color-text-muted); font-size: 0.6em; }
+
+      .board {
+        display: grid;
+        gap: calc(var(--space-board-gap) * 1px);
+        align-content: stretch;
+        min-height: 0;
+      }
+      .board-column { display: grid; gap: calc(var(--space-board-gap) * 1px); grid-auto-rows: 1fr; }
+
+      .category {
+        display: grid;
+        place-items: center;
+        padding: 0.4em;
+        text-align: center;
+        background: var(--color-bg-elevated);
+        border-radius: calc(var(--radius-tile) * 1px);
+        font-family: var(--type-display);
+        text-transform: var(--type-uppercase-categories);
+        letter-spacing: 0.03em;
+        font-size: calc(var(--base) * var(--type-scale-category));
+        line-height: 1.1;
+      }
+
+      .tile {
+        display: grid;
+        place-items: center;
+        background: var(--color-tile);
+        color: var(--color-tile-text);
+        border-radius: calc(var(--radius-tile) * 1px);
+        box-shadow: var(--shadow-tile);
+        font-family: var(--type-display);
+        font-size: calc(var(--base) * var(--type-scale-tile));
+        letter-spacing: 0.02em;
+      }
+      .tile[data-consumed='true'] {
+        background: var(--color-tile-consumed);
+        color: transparent;
+        box-shadow: none;
+      }
+      .tile[data-empty='true'] { background: transparent; box-shadow: none; color: transparent; }
+
+      .scoreboard { display: flex; gap: calc(var(--base) * 0.6); }
+      .team {
+        flex: 1;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.5em;
+        padding: 0.3em 0.7em;
+        border-radius: calc(var(--radius-card) * 1px);
+        background: var(--color-bg-elevated);
+        border-bottom: 0.25em solid var(--team-color, var(--color-accent));
+        font-size: calc(var(--base) * var(--type-scale-score));
+      }
+      .team .name { font-family: var(--type-display); letter-spacing: 0.03em; }
+      .team .score { font-variant-numeric: tabular-nums; color: var(--color-accent); }
+      .team[data-eliminated='true'] { opacity: 0.4; }
+
+      .question-overlay {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: var(--base);
+        padding: calc(var(--space-screen-padding) * 2px);
+        background: var(--color-scrim);
+        backdrop-filter: blur(6px);
+      }
+      .question-value {
+        font-family: var(--type-display);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--color-accent);
+        font-size: calc(var(--base) * var(--type-scale-category));
+      }
+      .question-prompt {
+        display: grid;
+        place-items: center;
+        text-align: center;
+        text-wrap: balance;
+        font-family: var(--type-display);
+        font-size: calc(var(--base) * var(--type-scale-question));
+        line-height: 1.15;
+      }
+      .timer { height: 0.5em; border-radius: 999px; background: var(--color-bg-elevated); overflow: hidden; }
+      .timer-fill { height: 100%; width: 100%; background: var(--color-accent); }
+      .timer-fill[data-warn='true'] { background: var(--color-wrong, #ff5c5c); }
+      .timer[hidden] { display: none; }
+
+      .placeholder {
+        display: grid;
+        place-items: center;
+        color: var(--color-text-muted);
+        font-family: var(--type-display);
+        font-size: calc(var(--base) * 1.4);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .demo-banner {
+        position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+        display: flex; gap: 0.75rem; align-items: baseline; justify-content: center;
+        padding: 0.5rem 1rem; font-size: 0.85rem;
+        background: #f5c518; color: #10131c;
+      }
+      .demo-banner a { color: #10131c; font-weight: 700; }
+      .demo-controls {
+        position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+        display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+        padding: 0.6rem 1rem;
+        background: #10131c; border-top: 2px solid #f5c518;
+        font-size: 0.85rem; color: #f5f7ff;
+      }
+      .demo-status { font-variant: small-caps; letter-spacing: 0.06em; opacity: 0.75; }
+      .demo-answer { color: #f5c518; font-weight: 700; }
+      .demo-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
+      .demo-button {
+        font: inherit; padding: 0.35rem 0.8rem; border-radius: 6px;
+        border: 1px solid #3a4258; background: #1b2136; color: #f5f7ff; cursor: pointer;
+      }
+      .demo-button:hover { background: #262d47; }
+      .demo-button.primary { background: #f5c518; color: #10131c; border-color: #f5c518; font-weight: 700; }
+      .demo-button.ghost { opacity: 0.7; }
+      .demo-button.hint { background: transparent; border-style: dashed; cursor: default; opacity: 0.6; }
+      body { padding-top: 2.2rem; padding-bottom: 3.2rem; }
+      .tile:not([data-consumed='true']):not([data-empty='true']) { cursor: pointer; }
+      .tile:not([data-consumed='true']):not([data-empty='true']):hover { filter: brightness(1.35); }
+    </style>
+  </head>
+  <body>
+    <div class="demo-banner">
+      <span>Live demo — the real thing runs on a laptop with the host on a separate device.</span>
+      <a href="https://github.com/machtumens/TriviaMaker">Source</a>
+    </div>
+    <div id="root">
+      <div class="placeholder">Waiting for the show to start…</div>
+    </div>
+    <script type="module" src="./demo/main.ts"></script>
+  </body>
+</html>

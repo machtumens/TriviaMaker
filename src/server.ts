@@ -4,14 +4,12 @@ import { randomUUID } from 'node:crypto'
 import { networkInterfaces } from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { resolve, type Intent, type SessionState, type StylePlugin, type TransportPlugin } from './registry/index'
+import { resolve, type TransportPlugin } from './registry/index'
 import type { GameShowConfig, GameShowConfigInput } from './config/types'
 import { resolveConfig } from './config/resolve'
-import { resolvedQuestionSec } from './engine/intents'
 import { undo } from './engine/log'
-import {
-  advanceToNextRound, createSession, currentRound, dispatchHostAction, resolveAnswer, styleKeyFor,
-} from './engine/session'
+import { createSession, dispatchHostAction } from './engine/session'
+import { intentsForCommand } from './engine/commands'
 import { broadcastState } from './engine/broadcast'
 import type { LocalTransportOptions } from './transport/local'
 
@@ -45,81 +43,6 @@ async function loadPreset(presetPath: string): Promise<GameShowConfigInput> {
     `[server] "${presetPath}" does not export a game show config ` +
     '(expected a default export, or a named export with a `meta` field)',
   )
-}
-
-function requireString(value: unknown, field: string): string {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`[server] command field "${field}" must be a non-empty string`)
-  }
-  return value
-}
-
-function requireNumber(value: unknown, field: string): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    throw new Error(`[server] command field "${field}" must be a finite number`)
-  }
-  return value
-}
-
-function intentsForCommand(state: SessionState, type: string, payload: unknown): Intent[] {
-  const fields = (payload ?? {}) as Record<string, unknown>
-
-  switch (type) {
-    case 'start':
-      return [{ type: 'setPhase', phase: 'board' }]
-
-    case 'select': {
-      const round = currentRound(state.config, state.roundIndex)
-      const style = resolve<StylePlugin>('style', styleKeyFor(round))
-      return style.onSelect(state, requireString(fields['questionId'], 'select.questionId'))
-    }
-
-    case 'arm': {
-      const questionSec = resolvedQuestionSec(state.config, state)
-      const intents: Intent[] = []
-      if (questionSec !== null) intents.push({ type: 'startClock', ms: questionSec * MS_PER_SECOND })
-      intents.push({ type: 'setPhase', phase: 'armed' })
-      return intents
-    }
-
-    case 'markCorrect':
-    case 'markWrong':
-      return resolveAnswer(state, {
-        teamId: requireString(fields['teamId'], `${type}.teamId`),
-        correct: type === 'markCorrect',
-      })
-
-    case 'next':
-      return [{ type: 'setPhase', phase: 'board' }]
-
-    case 'advanceRound': {
-      const eliminateTeamId = typeof fields['eliminateTeamId'] === 'string'
-        ? fields['eliminateTeamId']
-        : undefined
-      return advanceToNextRound(state, { eliminateTeamId })
-    }
-
-    case 'continue': {
-      if (state.phase === 'intermission') {
-        const round = currentRound(state.config, state.roundIndex)
-        return [{ type: 'setPhase', phase: round.intro?.enabled ? 'roundIntro' : 'board' }]
-      }
-      if (state.phase === 'roundIntro') return [{ type: 'setPhase', phase: 'board' }]
-      throw new Error(`[server] "continue" is not valid from phase "${state.phase}"`)
-    }
-
-    case 'endRound':
-      return [{ type: 'setPhase', phase: 'final' }]
-
-    case 'pause':
-      return [{ type: 'stopClock' }]
-
-    case 'resume':
-      return [{ type: 'startClock', ms: requireNumber(fields['ms'], 'resume.ms') }]
-
-    default:
-      throw new Error(`[server] unknown command "${type}"`)
-  }
 }
 
 async function main(): Promise<void> {

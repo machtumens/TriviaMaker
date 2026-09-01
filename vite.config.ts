@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         stage: here('src/stage/index.html'),
         host: here('src/host/index.html'),
+        demo: here('src/index.html'),
       },
     },
   },

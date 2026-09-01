@@ -1,5 +1,8 @@
 # TriviaMaker
 
+**[Play the demo →](https://machtumens.github.io/TriviaMaker/)** — the real engine
+running entirely in your browser.
+
 A configurable game show engine. Runs a Jeopardy-style quiz off a laptop on
 local wifi — projector on one screen, host controls on another device.
 
@@ -58,6 +61,18 @@ overrides: {
 
 The one setting worth tuning for your room is `theme.type.baseSize`. Every
 font size is a multiple of it.
+
+## The demo
+
+[machtumens.github.io/TriviaMaker](https://machtumens.github.io/TriviaMaker/) runs
+the actual engine client-side — same phase machine, same scoring, same undo. It
+swaps the Node transport for an in-memory one, which is the plugin seam working
+as intended.
+
+It is a demo, not the product. Everything is in one browser tab and the answers
+are in the bundle, so it can only ever show sample content. A real show runs the
+server, keeps the answer key on the host device, and puts nothing but the board
+on the projector.
 
 ## Project layout
 

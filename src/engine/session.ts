@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+
 import {
   resolve,
   type GameEvent, type Intent, type Phase, type ScoringPlugin, type SessionState,
@@ -85,7 +85,7 @@ export function createSession(
 ): SessionState {
   const snapshot = structuredClone(config)
   return {
-    id: options.id ?? randomUUID(),
+    id: options.id ?? crypto.randomUUID(),
     joinCode: options.joinCode ?? generateJoinCode(snapshot),
     config: snapshot,
     phase: 'lobby',

@@ -68,6 +68,7 @@ function renderGridBoard(payload: BroadcastPayload): HTMLElement {
       const cell = payload.board.cells.find(c => c.col === col && c.row === row)
 
       const tile = el('div', 'tile', cell?.label ?? '')
+      tile.dataset['questionId'] = cell?.questionId ?? ''
       tile.dataset['consumed'] = String(cell?.consumed ?? false)
       tile.dataset['empty'] = String(cell === undefined)
       column.append(tile)
