@@ -1,5 +1,14 @@
 node_modules/
 dist/
-.DS_Store
 *.log
+*.pid
+
+.env
+.env.*
+
+.claude/
 .claude-crawl/
+
+.DS_Store
+.vscode/
+.idea/

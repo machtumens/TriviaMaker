@@ -11,7 +11,6 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(out.a, 1, 'untouched keys survive')
 }
 {
-
   const out = deepMerge({ arr: [1, 2, 3] }, { arr: [9] } as never)
   assert.deepEqual(out.arr, [9], 'arrays replace, not concat')
 }
@@ -28,7 +27,6 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(cfg.version, DEFAULT_CONFIG.version, 'version inherited')
 }
 {
-
   const parent: GameShowConfigInput = {
     meta: { id: 'parent', title: 'P' },
     rules: { timer: { questionSec: 45 }, buzz: { graceWindowMs: 300 } },
@@ -96,6 +94,38 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(stage.prompt, 'P', 'prompt survives')
   assert.equal(redactQuestion(q, 'player').answer, undefined, 'answer stripped for players')
   assert.equal(redactQuestion(q, 'host').answer, 'SECRET', 'host keeps the answer')
+}
+
+
+{
+  const q: Question = {
+    id: 'q-leak', kind: 'survey', prompt: 'Name something you take to school',
+    answer: 'Books',
+    acceptedAnswers: ['book'],
+    hostNote: 'accept plurals',
+    correctChoiceIndex: 1,
+    numericAnswer: 42,
+    numericTolerance: 3,
+    fuzzyTolerance: 0.5,
+    surveyAnswers: [{ text: 'Books', count: 61 }, { text: 'Lunch', count: 24 }],
+    points: 100,
+  }
+
+  for (const audience of ['stage', 'player'] as const) {
+    const shown = redactQuestion(q, audience)
+    const wire = JSON.stringify(shown)
+
+    for (const secret of ['Books', 'accept plurals', 'Lunch', '42']) {
+      assert.equal(
+        wire.includes(secret), false,
+        `${audience} payload must not contain ${JSON.stringify(secret)} — got ${wire}`,
+      )
+    }
+    assert.equal(shown.prompt, q.prompt, `${audience} still needs the prompt`)
+    assert.equal(shown.points, 100, `${audience} still needs the point value`)
+  }
+
+  assert.equal(redactQuestion(q, 'host').surveyAnswers?.length, 2, 'the host adjudicates, so it keeps everything')
 }
 
 console.log('✓ config cascade: all checks passed')

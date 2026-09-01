@@ -33,7 +33,6 @@ export interface ResolveAnswerInput {
 }
 
 export interface AdvanceRoundInput {
-
   eliminateTeamId?: string
 }
 
@@ -204,7 +203,6 @@ export function resolveAnswer(state: SessionState, input: ResolveAnswerInput): I
 }
 
 export function advanceToNextRound(state: SessionState, input: AdvanceRoundInput = {}): Intent[] {
-
   if (state.phase !== 'reveal') {
     throw new Error(`[session] advanceToNextRound: phase must be "reveal", got "${state.phase}"`)
   }
@@ -231,7 +229,6 @@ export function advanceToNextRound(state: SessionState, input: AdvanceRoundInput
       if (candidates.length === 1) {
         chosen = candidates[0]!
       } else {
-
         chosen = input.eliminateTeamId
           ? candidates.find(t => t.id === input.eliminateTeamId)
           : undefined
@@ -269,7 +266,6 @@ export function advanceToNextRound(state: SessionState, input: AdvanceRoundInput
 
   const enteredRound = rounds[candidateIndex]
   if (!enteredRound) {
-
     intents.push({ type: 'setPhase', phase: 'final' })
     return intents
   }

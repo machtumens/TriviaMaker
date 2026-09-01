@@ -149,7 +149,6 @@ function applyAndCheck(
   )
 }
 {
-
   const base = makeState()
   const untimedConfig: GameShowConfig = {
     ...CONFIG,
@@ -180,7 +179,6 @@ function applyAndCheck(
   assert.equal(after.styleState, NEXT, 'adopted by reference, not copied')
 }
 {
-
   const before: SessionState = { ...makeState(), styleState: { stale: 1, alsoStale: 2 } }
   const after = applyIntent(before, { type: 'setStyleState', nextStyleState: { fresh: 3 } })
   assert.deepEqual(after.styleState, { fresh: 3 }, 'the previous keys are gone, not merged')
@@ -192,7 +190,6 @@ function applyAndCheck(
   assert.deepEqual(after.styleState, {}, 'and clears styleState')
 }
 {
-
   const before: SessionState = {
     ...makeState(),
     config: CONFIG_MULTI_ROUND,
@@ -209,7 +206,6 @@ function applyAndCheck(
 }
 
 {
-
   const before = makeState()
   assert.equal(
     before.config.program.rounds.length - 1, before.roundIndex,
@@ -223,7 +219,6 @@ function applyAndCheck(
   assert.deepEqual(after.styleState, before.styleState, 'a no-op advance does not clear styleState either')
 }
 {
-
   const before: SessionState = { ...makeState(), styleState: { revealed: ['x'] } }
   const after = applyIntent(before, { type: 'advanceRound' })
   assert.equal(after.roundIndex, 0, 'still on the last round')

@@ -8,7 +8,6 @@ type Channel = 'stage' | 'host' | 'player'
 type CommandHandler = (cmd: { from: string; type: string; payload: unknown }) => void
 
 export interface LocalTransportOptions {
-
   port?: number
 
   hostToken: string
@@ -17,7 +16,6 @@ export interface LocalTransportOptions {
 }
 
 export interface LocalTransportHandle extends TransportHandle {
-
   readonly port: number
 }
 
@@ -102,6 +100,7 @@ export async function startLocalTransport(
     if (current !== null) res.write(current)
     clients[channel].add(res)
     res.on('close', () => { clients[channel].delete(res) })
+    res.on('error', () => { clients[channel].delete(res) })
   }
 
   async function serveStatic(pathname: string, res: http.ServerResponse): Promise<void> {
@@ -169,6 +168,7 @@ export async function startLocalTransport(
       commandHandler?.({ from: 'host', type: command.type, payload: command.payload })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      console.error(`[transport:local] command "${String(command.type)}" rejected:`, message)
       sendJson(res, 500, { error: message })
       return
     }
@@ -222,7 +222,13 @@ export async function startLocalTransport(
     broadcast(channel, payload) {
       const frame = `data: ${JSON.stringify(payload)}\n\n`
       retained[channel] = frame
-      for (const res of clients[channel]) res.write(frame)
+      for (const res of clients[channel]) {
+        try {
+          res.write(frame)
+        } catch {
+          clients[channel].delete(res)
+        }
+      }
     },
 
     onCommand(handler) {

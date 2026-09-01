@@ -2,6 +2,14 @@ import type {
   GameShowConfig, RuleSet, Question, Round, GameEventName, RegistryKey,
 } from '../config/types'
 
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { readonly [key: string]: JsonValue }
+
 export type Phase =
   | 'lobby' | 'roundIntro' | 'board' | 'reading' | 'armed'
   | 'locked' | 'adjudicate' | 'reveal' | 'wager'
@@ -23,7 +31,7 @@ export interface SessionState {
   readonly lockedOutTeamIds: ReadonlySet<string>
   readonly clockStartedAt: number | null
 
-  readonly styleState: Record<string, unknown>
+  readonly styleState: Record<string, JsonValue>
   readonly log: readonly GameEvent[]
 }
 
@@ -69,7 +77,7 @@ export type Intent =
   | { type: 'effect'; key: string; options?: Record<string, unknown> }
   | { type: 'eliminate'; teamId: string }
 
-  | { type: 'setStyleState'; nextStyleState: Record<string, unknown> }
+  | { type: 'setStyleState'; nextStyleState: Record<string, JsonValue> }
 
   | { type: 'advanceRound' }
   | { type: 'custom'; key: string; payload: Record<string, unknown> }
@@ -149,7 +157,6 @@ export interface TransportPlugin<O = Record<string, unknown>> {
 }
 
 export interface TransportHandle {
-
   broadcast(channel: 'stage' | 'host' | 'player', payload: unknown): void
   onCommand(handler: (cmd: { from: string; type: string; payload: unknown }) => void): void
 

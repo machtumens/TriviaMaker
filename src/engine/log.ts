@@ -29,7 +29,6 @@ export function applyIntentsWithLog(
   seq: number,
   at: number,
 ): { state: SessionState; event: GameEvent } {
-
   const touched = new Set<keyof SessionState>()
   for (const intent of intents) {
     for (const key of INTENT_TOUCHED_KEYS[intent.type]) touched.add(key)

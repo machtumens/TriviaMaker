@@ -168,14 +168,10 @@ function connect(): void {
       latest = JSON.parse(event.data) as BroadcastPayload
       render(latest)
     } catch (error) {
-
       console.error('[stage] could not render a state frame', error)
     }
   })
 
-  source.addEventListener('error', () => {
-
-  })
 }
 
 connect()

@@ -286,7 +286,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-
   const config = makeMultiRoundConfig(makeRounds([
     {},
     { intro: { enabled: false, durationMs: 1, text: 'Round 2' } },
@@ -340,7 +339,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-
   const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
   const state = revealState(config, [team('a', 30), team('b', -999, true), team('c', 20)])
   assert.deepEqual(
@@ -407,7 +405,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-
   const config = makeMultiRoundConfig(makeRounds([
     { eliminateLowest: true },
     { minTeams: 3 },
@@ -426,7 +423,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-
   const config = makeMultiRoundConfig(makeRounds([{}, { minTeams: 0 }, {}]))
   const state = revealState(config, [])
   assert.deepEqual(

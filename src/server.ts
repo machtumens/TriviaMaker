@@ -150,7 +150,6 @@ async function main(): Promise<void> {
       if (!state.config.runtime.undo.enabled) throw new Error('[server] undo is disabled for this show')
       state = undo(state, state.config.runtime.undo.depth).state
     } else {
-
       const intents = intentsForCommand(state, command.type, command.payload)
       seq++
       state = dispatchHostAction(state, intents, seq, Date.now()).state
@@ -169,7 +168,9 @@ async function main(): Promise<void> {
   console.log('  Ctrl-C to end the show.\n')
 
   const shutdown = () => {
-    void handle.stop().finally(() => process.exit(0))
+    void handle.stop()
+      .catch((error: unknown) => { console.error('[server] shutdown error:', error) })
+      .finally(() => process.exit(0))
   }
   process.on('SIGINT', shutdown)
   process.on('SIGTERM', shutdown)

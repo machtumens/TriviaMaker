@@ -59,6 +59,32 @@ for (const file of files) {
   })
 }
 
+const SRC_DIR = path.join(ROOT, 'src')
+const REDACTION_OWNER = path.join('src', 'engine', 'broadcast.ts')
+const broadcastCallers = []
+
+for (const file of await collectTsFiles(SRC_DIR)) {
+  const relative = path.relative(ROOT, file)
+  if (relative === REDACTION_OWNER || relative.endsWith('.test.ts')) continue
+  const lines = (await readFile(file, 'utf8')).split('\n')
+  lines.forEach((line, index) => {
+    if (/\.broadcast\s*\(/.test(line)) {
+      broadcastCallers.push({ file: relative, line: index + 1, source: line.trim() })
+    }
+  })
+}
+
+if (broadcastCallers.length > 0) {
+  console.error('✗ redaction boundary: handle.broadcast() called outside broadcast.ts\n')
+  for (const caller of broadcastCallers) {
+    console.error(`  ${caller.file}:${caller.line}`)
+    console.error(`    ${caller.source}`)
+  }
+  console.error(`\n  ${REDACTION_OWNER} redacts answers before they reach a client.`)
+  console.error('  Any other caller sends an unredacted payload to the projector.')
+  process.exit(1)
+}
+
 if (violations.length > 0) {
   console.error('✗ stage/host isolation: forbidden imports found\n')
   for (const violation of violations) {
@@ -69,4 +95,7 @@ if (violations.length > 0) {
   process.exit(1)
 }
 
-console.log(`✓ stage/host isolation: ${files.length} stage file(s) checked, no host imports`)
+console.log(
+  `✓ stage/host isolation: ${files.length} stage file(s) checked, no host imports; ` +
+  `handle.broadcast() confined to ${REDACTION_OWNER}`,
+)

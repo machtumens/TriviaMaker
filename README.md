@@ -16,8 +16,8 @@ npm run show presets/assembly-show.ts
 It prints two URLs:
 
 ```
-Stage: http://192.168.1.10:7801/stage.html
-Host:  http://192.168.1.10:7801/host.html?token=...
+Stage: http://192.168.1.10:8080/stage.html
+Host:  http://192.168.1.10:8080/host.html?token=...
 ```
 
 Put **Stage** on the projector and open **Host** on your phone. The host link
@@ -28,8 +28,10 @@ Omit the preset argument for a shorter demo show.
 ## The two views
 
 **Stage** is read-only. Board, current question, timer, scoreboard. It never
-receives the answer key — that is enforced at the transport layer and by a
-build check that fails if the stage bundle imports host code.
+receives the answer key: `src/engine/broadcast.ts` redacts every payload before
+handing it to the transport. `node scripts/check-stage-host-isolation.mjs` fails
+if anything under `src/stage/` imports host code — run it yourself, it is a
+source-level scan and is not wired into `npm run build`.
 
 **Host** shows the answers, plus controls: pick a tile, arm, mark correct or
 wrong, undo, advance the round, end the show.
@@ -40,7 +42,8 @@ consumes a tile and moves the phase; one press puts all three back.
 ## Writing a show
 
 Shows are typed config files under `presets/`. Copy `assembly-show.ts` and
-edit it. See [CUSTOMIZATION.md](CUSTOMIZATION.md) for the full surface —
+edit it. `demo-t1.ts` is a shorter smoke test; `school-assembly.example.ts`
+exercises features this build does not implement yet and will not start. See [CUSTOMIZATION.md](CUSTOMIZATION.md) for the full surface —
 themes, rules, scoring, timers, teams — and for what a style plugin must do.
 
 Round-level overrides are deep-merged over the event config, so a

@@ -14,12 +14,13 @@ function warnOnceOnUnimplementedBonuses(rules: RuleSet): void {
   const enabled: string[] = []
   if (rules.scoring.streak?.enabled) enabled.push('scoring.streak')
   if (rules.scoring.comeback?.enabled) enabled.push('scoring.comeback')
+  if (rules.scoring.wager?.enabled) enabled.push('scoring.wager')
   if (enabled.length === 0) return
 
   bonusWarningIssued = true
   console.warn(
     `[scoring:flat] ${enabled.join(' and ')} ${enabled.length === 1 ? 'is' : 'are'} enabled in this config, ` +
-    'but the "flat" engine does not implement bonus scoring (Design Lock L5 — T2 scope). ' +
+    'but the "flat" engine does not implement bonus scoring. ' +
     'Scores will be face value only.',
   )
 }

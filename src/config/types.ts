@@ -5,7 +5,6 @@ export type DeepPartial<T> = {
 export type RegistryKey = string
 
 export interface ThemeTokens {
-
   color: {
     bg: string
     bgElevated: string
@@ -27,7 +26,6 @@ export interface ThemeTokens {
   }
 
   type: {
-
     display: string
     body: string
     mono: string
@@ -66,7 +64,6 @@ export interface ThemeTokens {
 }
 
 export interface MotionConfig {
-
   enabled: boolean
   respectReducedMotion: boolean
 
@@ -332,7 +329,6 @@ export interface RuleSet {
 }
 
 export interface TurnRules {
-
   picker: 'host' | 'winnerOfLast' | 'rotation' | 'trailingTeam' | 'random'
 
   answerRights: 'buzz' | 'turnOwner' | 'allSimultaneous'
@@ -377,7 +373,6 @@ export type InputConfig =
   | { kind: 'custom'; plugin: RegistryKey; options: Record<string, unknown> }
 
 export interface TimerRules {
-
   questionSec: number | null
 
   answerSec: number | null
@@ -395,7 +390,6 @@ export interface TimerRules {
 }
 
 export interface WrongAnswerRules {
-
   penalty: number
 
   penaltyIsProportional: boolean
@@ -409,7 +403,6 @@ export interface WrongAnswerRules {
 }
 
 export interface ScoringRules {
-
   engine: 'flat' | 'speedWeighted' | 'multiplier' | RegistryKey
 
   speedFloor: number
@@ -428,7 +421,6 @@ export interface ScoringRules {
   }
 
   comeback: {
-
     enabled: boolean
 
     deficitThreshold: number
@@ -452,7 +444,6 @@ export interface ScoringRules {
   allowNegative: boolean
 
   tieBreak: {
-
     order: Array<'suddenDeath' | 'fewestWrong' | 'fastestAvgBuzz' | 'hostDecides' | 'shared'>
   }
 }
@@ -462,7 +453,6 @@ export interface LifelineRules {
 
   perRound: boolean
   available: Array<{
-
     plugin: RegistryKey
     uses: number
     label?: string
@@ -487,7 +477,6 @@ export interface SpecialTileRules {
 }
 
 export interface TeamConfig {
-
   teams: Array<{
     id: string
     name: string
@@ -503,7 +492,6 @@ export interface TeamConfig {
   editableDuringGame: boolean
 
   membership: {
-
     assignment: 'preassigned' | 'playerChoice' | 'autoBalance' | 'none'
     maxPerTeam: number | null
 
@@ -512,7 +500,6 @@ export interface TeamConfig {
 }
 
 export interface JoinConfig {
-
   method: 'none' | 'code' | 'qr' | 'both' | 'preassigned'
   codeLength: number
   codeCharset: 'numeric' | 'alpha' | 'alphanumeric'
@@ -581,7 +568,6 @@ export interface ProgramConfig {
 }
 
 export interface LayoutConfig {
-
   aspect: '16:9' | '16:10' | '4:3' | 'fill'
 
   safeAreaPercent: number
@@ -606,7 +592,6 @@ export interface LayoutConfig {
 }
 
 export interface AccessibilityConfig {
-
   fontScale: number
   highContrast: boolean
 
@@ -622,7 +607,6 @@ export interface AccessibilityConfig {
 }
 
 export interface RuntimeConfig {
-
   degradeToOfflineOnNetworkLoss: boolean
 
   preloadAllMedia: boolean
@@ -630,7 +614,6 @@ export interface RuntimeConfig {
   snapshotContentAtLaunch: boolean
 
   persistence: {
-
     autosave: boolean
     intervalMs: number
 
@@ -647,7 +630,6 @@ export interface RuntimeConfig {
   }
 
   transport: {
-
     driver: RegistryKey
     options: Record<string, unknown>
 
@@ -656,7 +638,6 @@ export interface RuntimeConfig {
   }
 
   broadcast: {
-
     obsOverlay: boolean
     overlayRoute: string
   }
@@ -673,7 +654,6 @@ export type GameEventName =
   | 'phase.changed'
 
 export interface IntegrationConfig {
-
   hooks: Array<{
     on: GameEventName | GameEventName[]
     plugin: RegistryKey
@@ -684,7 +664,6 @@ export interface IntegrationConfig {
 }
 
 export interface GameShowConfig {
-
   version: number
   meta: {
     id: string

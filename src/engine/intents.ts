@@ -99,10 +99,8 @@ export function applyIntent(state: SessionState, intent: Intent): SessionState {
       return { ...state, lockedOutTeamIds: withAdded(state.lockedOutTeamIds, intent.teamId) }
 
     case 'startClock': {
-
       const questionSec = resolvedQuestionSec(state.config, state)
       if (questionSec === null) {
-
         return { ...state, clockStartedAt: null }
       }
       return {
@@ -130,7 +128,6 @@ export function applyIntent(state: SessionState, intent: Intent): SessionState {
       return { ...state, styleState: intent.nextStyleState }
 
     case 'advanceRound': {
-
       const nextIndex = state.roundIndex + 1
       if (nextIndex > state.config.program.rounds.length - 1) return { ...state }
 

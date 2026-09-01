@@ -173,11 +173,9 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
   }
 
   if (payload.phase === 'reveal') {
-
     if (!payload.round.isComplete) {
       row.append(button(payload.copy.host.next, 'primary', () => { void send('next') }))
     } else {
-
       const isLastRound = payload.roundIndex >= payload.config.program.rounds.length - 1
       if (isLastRound) {
         row.append(button(payload.copy.host.endRound, 'primary', () => { void send('endRound') }))
@@ -185,7 +183,6 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
         const round = payload.config.program.rounds[payload.roundIndex]
         const candidates = eliminationTieCandidates(round, payload.teams)
         if (candidates && candidates.length > 1) {
-
           for (const team of candidates) {
             row.append(button(
               `Eliminate ${team.name} & continue`, 'wrong',
@@ -208,7 +205,6 @@ function renderClockControls(payload: BroadcastPayload): HTMLElement {
 
   const running = payload.clockStartedAt !== null
   row.append(button('Pause clock', '', () => {
-
     pausedRemainingMs = remainingMs(payload)
     void send('pause')
   }, !running))

@@ -228,7 +228,6 @@ const DEPTH = 50
 }
 
 {
-
   const ORIGINAL_STYLE_STATE = { revealed: ['x'] }
   const before: SessionState = {
     ...makeState('reveal'),

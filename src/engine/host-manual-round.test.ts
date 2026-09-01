@@ -211,7 +211,6 @@ dispatch([{ type: 'setPhase', phase: 'final' }])
 }
 
 {
-
   const PER_ROUND = CELLS_PER_ROUND * 3 + (CELLS_PER_ROUND - 1) + 1
   assert.equal(state.log.length, hostActions, 'exactly one log event per host action')
   assert.equal(

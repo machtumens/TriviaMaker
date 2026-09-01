@@ -148,7 +148,6 @@ try {
   }
 
   {
-
     handle.broadcast('stage', { round: 'already in progress' })
     const late = await openSse(handle.port, '/events/stage')
     const frame = await late.nextFrame()
@@ -196,6 +195,24 @@ try {
 
     const wrongToken = await request(handle.port, { path: '/events/host?token=not-the-token' })
     assert.equal(wrongToken.status, 401, 'GET /events/host with a wrong token must be refused')
+  }
+  {
+    const client = http.request({
+      host: '127.0.0.1', port: handle.port, path: '/events/stage', method: 'GET',
+    })
+    client.end()
+    await new Promise<void>(resolve => { client.on('response', () => resolve()) })
+    client.destroy()
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    assert.doesNotThrow(
+      () => handle.broadcast('stage', { probe: 1 }),
+      'a write to a client that vanished must not take the show process down',
+    )
+    assert.doesNotThrow(
+      () => handle.broadcast('stage', { probe: 2 }),
+      'the dead client must have been dropped, not retried',
+    )
   }
 } finally {
   await handle.stop()

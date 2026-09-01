@@ -70,7 +70,6 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
   },
 
   onSelect(_state: SessionState, questionId: string): Intent[] {
-
     return [
       { type: 'selectQuestion', questionId },
       { type: 'setPhase', phase: 'reading' },
@@ -78,7 +77,6 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
   },
 
   onResolved(_state: SessionState, _correct: boolean): Intent[] {
-
     return []
   },
 

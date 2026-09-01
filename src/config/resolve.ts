@@ -92,11 +92,28 @@ export function themeToCssVars(theme: GameShowConfig['theme']): Record<string, s
   return vars
 }
 
+const AUDIENCE_SAFE_QUESTION_FIELDS = [
+  'id',
+  'kind',
+  'prompt',
+  'choices',
+  'media',
+  'points',
+  'timeLimitSec',
+  'trivia',
+  'difficulty',
+  'tags',
+  'special',
+] as const satisfies readonly (keyof Question)[]
+
 export function redactQuestion(
   q: Question,
   audience: 'stage' | 'player' | 'host',
 ): Partial<Question> {
   if (audience === 'host') return q
-  const { answer, acceptedAnswers, hostNote, correctChoiceIndex, numericAnswer, ...safe } = q
+  const safe: Partial<Question> = {}
+  for (const field of AUDIENCE_SAFE_QUESTION_FIELDS) {
+    if (q[field] !== undefined) Object.assign(safe, { [field]: q[field] })
+  }
   return safe
 }
