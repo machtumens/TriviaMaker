@@ -1,14 +1,3 @@
-/**
- * DEFAULT CONFIG — the base layer of the cascade.
- *
- * Defaults are chosen to be SAFE FOR A LIVE EVENT, not maximally featured:
- *   - no penalties (kindest for school audiences)
- *   - buzzers require explicit arming
- *   - offline degradation on
- *   - undo on
- * Turn things on deliberately in a preset; don't inherit surprises on stage.
- */
-
 import type { GameShowConfig } from './types'
 
 export const DEFAULT_CONFIG: GameShowConfig = {
@@ -24,7 +13,6 @@ export const DEFAULT_CONFIG: GameShowConfig = {
     finale: { style: 'podium', dramaticReveal: true, showStats: true },
   },
 
-  // -------------------------------------------------------------------------
   rules: {
     turn: {
       picker: 'host',
@@ -92,7 +80,6 @@ export const DEFAULT_CONFIG: GameShowConfig = {
     },
   },
 
-  // -------------------------------------------------------------------------
   theme: {
     color: {
       bg: '#0b1020',

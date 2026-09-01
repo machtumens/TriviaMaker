@@ -1,23 +1,3 @@
-/**
- * DEMO PRESET — the show `npm run show` runs with no arguments.
- *
- * Deliberately scoped to what T1 actually implements: `grid` rounds, `flat`
- * scoring, no streak or comeback bonuses, no lifelines, no special tiles, no
- * player devices. Everything here works end to end today.
- *
- * `school-assembly.ts` is the other example and is intentionally BROADER than
- * T1 — it enables a streak bonus and uses a `trivia` final round, both of which
- * belong to later tiers. It stays as a worked example of the full engine; this
- * file is the one you can run.
- *
- * Both rounds below are playable: T2.2 wires round advancement into the
- * host's "Next Round"/"Continue" actions (server.ts's `advanceRound`/
- * `continue` commands), so this preset plays start to finish — round 1,
- * its authored `intro`-less-but-round-2-has-intro boundary (exercises
- * `reveal -> roundIntro` directly, no intermission), round 2, then the
- * host's "End Show" action.
- */
-
 import type { GameShowConfigInput } from '../src/config/types'
 
 export const demoT1: GameShowConfigInput = {
@@ -27,7 +7,6 @@ export const demoT1: GameShowConfigInput = {
     subtitle: 'Two rounds, host-manual, no player devices',
   },
 
-  // Stage-only: no phones, no buzzers, host adjudicates everything.
   join: { method: 'none' },
 
   teams: {
@@ -44,8 +23,7 @@ export const demoT1: GameShowConfigInput = {
     buzz: { enabled: false, requireArming: true },
     timer: { questionSec: 30, warnAtSec: 5, hostCanPause: true },
     wrongAnswer: { penalty: 0, allowSteal: false },
-    // streak and comeback stay at their defaults (disabled) — `flat` does not
-    // implement them and would warn if they were switched on.
+
     scoring: { engine: 'flat', multiplier: 1 },
   },
 
@@ -92,7 +70,7 @@ export const demoT1: GameShowConfigInput = {
           consumedStyle: 'dim',
           dramaticCategoryReveal: false,
         },
-        // Zero engine changes — a round override is pure config.
+
         overrides: {
           rules: { scoring: { multiplier: 2 }, timer: { questionSec: 20 } },
           theme: { color: { accent: '#ff6b35' } },
@@ -107,8 +85,7 @@ export const demoT1: GameShowConfigInput = {
     banks: [{
       id: 'demo',
       title: 'Demo Questions',
-      // Each category lists its questions EASIEST FIRST, matching the point
-      // ladder's row order. T1 does not validate that ordering at runtime.
+
       categories: [
         {
           id: 'space', title: 'Space',

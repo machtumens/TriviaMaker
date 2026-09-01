@@ -1,24 +1,6 @@
-/**
- * ============================================================================
- * PLUGIN REGISTRY — the escape hatch for customisation nobody anticipated
- * ============================================================================
- *
- * Config covers what a host wants to CHANGE. Registries cover what a developer
- * wants to ADD. If the core engine ever needs to know a plugin's name, the
- * abstraction has failed.
- *
- * Rule: the engine depends on these INTERFACES only. It never imports a
- * concrete style, scoring engine, or transport.
- */
-
 import type {
   GameShowConfig, RuleSet, Question, Round, GameEventName, RegistryKey,
 } from '../config/types'
-
-// ---------------------------------------------------------------------------
-// Core session state the engine owns. Plugins receive it read-only and return
-// intents; they never mutate it directly. This is what keeps undo coherent.
-// ---------------------------------------------------------------------------
 
 export type Phase =
   | 'lobby' | 'roundIntro' | 'board' | 'reading' | 'armed'
@@ -40,34 +22,7 @@ export interface SessionState {
   readonly attemptsUsed: number
   readonly lockedOutTeamIds: ReadonlySet<string>
   readonly clockStartedAt: number | null
-  /**
-   * Opaque per-style scratch space. The engine never interprets its contents —
-   * it only carries them, snapshots them for undo (via `INTENT_TOUCHED_KEYS`'s
-   * `setStyleState`/`advanceRound` rows) and resets them at a round boundary.
-   *
-   * WRITE IT WITH THE `setStyleState` INTENT, never by mutation. That is what
-   * keeps one host press reversible by one undo press (Design Lock L2a); a
-   * direct mutation is invisible to the snapshot-diff undo in `log.ts`.
-   *
-   * JSON-SAFE VALUES ONLY — plain objects, arrays, strings, numbers, booleans,
-   * `null`. NEVER a `Set` or a `Map`. `broadcast.ts` explicitly converts
-   * `consumed` and `lockedOutTeamIds` to arrays on the way out; nothing
-   * converts `styleState`, so a `Set` stored here serialises to `{}` over SSE
-   * and the client silently receives an empty object instead of your data.
-   *
-   * SECURITY / REDACTION — THIS BROADCASTS UNREDACTED to `stage` and `player`,
-   * the same discipline class as `consumed`. A style MUST NEVER store
-   * answer-derived text in it. The realistic trap is a hangman-style masked
-   * label: deriving `"_ A _ _"` for display is fine, but caching the answer
-   * string itself (or a reveal state that runs ahead of what the audience has
-   * actually earned) leaks it to every projector and phone in the room. Store
-   * indices into already-public data, or derive the masked form at render time.
-   *
-   * RESET — `advanceRound` clears this to `{}` as an engine-level safety net so
-   * one round's state can never bleed into the next. Per-question granularity
-   * is the style's own job: reset your own sub-keys from `onSelect`. No style
-   * does this yet — the mechanism exists before its first consumer.
-   */
+
   readonly styleState: Record<string, unknown>
   readonly log: readonly GameEvent[]
 }
@@ -85,10 +40,10 @@ export interface PlayerState {
 
 export interface BuzzRecord {
   playerId: string; teamId: string | null
-  /** Server receipt minus estimated one-way latency. */
+
   estimatedTapTime: number
   rank: number
-  /** Gap behind the leader, surfaced to the host for photo finishes. */
+
   marginMs: number
 }
 
@@ -97,11 +52,10 @@ export interface GameEvent {
   at: number
   name: GameEventName
   payload: Record<string, unknown>
-  /** Inverse patch enabling undo without hand-written inverse operations. */
+
   undo?: Record<string, unknown>
 }
 
-/** Plugins return intents. The engine applies them and logs them. */
 export type Intent =
   | { type: 'setPhase'; phase: Phase }
   | { type: 'awardPoints'; teamId: string; delta: number; reason: string }
@@ -114,41 +68,32 @@ export type Intent =
   | { type: 'playSound'; key: string }
   | { type: 'effect'; key: string; options?: Record<string, unknown> }
   | { type: 'eliminate'; teamId: string }
-  /** Replace `state.styleState` wholesale. The undo-safe style write path. */
+
   | { type: 'setStyleState'; nextStyleState: Record<string, unknown> }
-  /** Move to the next round and clear `styleState`. See `SessionState.styleState`. */
+
   | { type: 'advanceRound' }
   | { type: 'custom'; key: string; payload: Record<string, unknown> }
 
-// ---------------------------------------------------------------------------
-// 1. STYLE — owns the board, question selection, and what "a turn" means
-// ---------------------------------------------------------------------------
-
 export interface StylePlugin<O = Record<string, unknown>> {
   key: RegistryKey
-  /**
-   * Build the board model this style renders from a round's content.
-   *
-   * `state` is READ-ONLY context (notably `styleState`) for styles that derive
-   * per-cell data from live session state. Never mutate it.
-   */
+
   buildBoard(round: Round, options: O, state: SessionState): BoardModel
-  /** Which questions may be picked right now. */
+
   availableQuestions(state: SessionState, board: BoardModel): string[]
-  /** Called when the host/turn-owner picks. Returns intents. */
+
   onSelect(state: SessionState, questionId: string): Intent[]
-  /** Called after adjudication — lets the style advance its own board state. */
+
   onResolved(state: SessionState, correct: boolean): Intent[]
-  /** Style-specific win condition (tic-tac-toe line, hangman solved, ...). */
+
   isRoundComplete(state: SessionState, board: BoardModel): boolean
-  /** Component key the stage view renders. */
+
   stageComponent: string
   hostComponent: string
 }
 
 export interface BoardModel {
   kind: string
-  /** Generic cell list — styles interpret `meta` however they like. */
+
   cells: Array<{
     id: string
     questionId: string
@@ -162,16 +107,9 @@ export interface BoardModel {
   meta?: Record<string, unknown>
 }
 
-// ---------------------------------------------------------------------------
-// 2. SCORING — pure function from outcome to point deltas
-// ---------------------------------------------------------------------------
-
 export interface ScoringPlugin {
   key: RegistryKey
-  /**
-   * MUST be pure. Given the outcome, return deltas. Purity is what makes undo,
-   * replay, and score auditing work — never mutate state in here.
-   */
+
   score(input: ScoreInput): ScoreDelta[]
 }
 
@@ -181,7 +119,7 @@ export interface ScoreInput {
   question: Question
   teamId: string
   correct: boolean
-  /** ms from arming to answer submission. */
+
   elapsedMs: number
   isSteal: boolean
   wager?: number
@@ -190,17 +128,13 @@ export interface ScoreInput {
 export interface ScoreDelta {
   teamId: string
   delta: number
-  /** Shown in the host's score log — makes disputes resolvable. */
+
   reason: string
 }
 
-// ---------------------------------------------------------------------------
-// 3. INPUT — where buzzes and answers come from
-// ---------------------------------------------------------------------------
-
 export interface InputPlugin<O = Record<string, unknown>> {
   key: RegistryKey
-  /** Begin listening. Call `emit` on every input event. */
+
   attach(emit: (e: InputEvent) => void, options: O): () => void
 }
 
@@ -209,48 +143,40 @@ export type InputEvent =
   | { kind: 'answer'; playerId: string; value: string | number; receivedAt: number }
   | { kind: 'lifeline'; teamId: string; lifeline: string }
 
-// ---------------------------------------------------------------------------
-// 4. TRANSPORT — how state reaches clients
-// ---------------------------------------------------------------------------
-
 export interface TransportPlugin<O = Record<string, unknown>> {
   key: RegistryKey
   start(options: O): Promise<TransportHandle>
 }
 
 export interface TransportHandle {
-  /** Push authoritative state. Redaction (hiding answers) happens above this. */
+
   broadcast(channel: 'stage' | 'host' | 'player', payload: unknown): void
   onCommand(handler: (cmd: { from: string; type: string; payload: unknown }) => void): void
-  /** Latency sample per client, for compensated buzz arbitration. */
+
   rtt(clientId: string): number
   stop(): Promise<void>
 }
-
-// ---------------------------------------------------------------------------
-// 5. LIFELINE / SPECIAL TILE / EFFECT / WIDGET / LAYOUT / TRANSITION
-// ---------------------------------------------------------------------------
 
 export interface LifelinePlugin<O = Record<string, unknown>> {
   key: RegistryKey
   label: string
   icon?: string
-  /** May this be used right now? */
+
   isAvailable(state: SessionState, teamId: string): boolean
   apply(state: SessionState, teamId: string, options: O): Intent[]
 }
 
 export interface SpecialTilePlugin<O = Record<string, unknown>> {
   key: RegistryKey
-  /** Fired when a tile carrying this marker is selected. */
+
   onSelected(state: SessionState, question: Question, options: O): Intent[]
-  /** Modify scoring for this question (e.g. double value, wager). */
+
   modifyScore?(deltas: ScoreDelta[], input: ScoreInput, options: O): ScoreDelta[]
 }
 
 export interface EffectPlugin<O = Record<string, unknown>> {
   key: RegistryKey
-  /** Visual/audio flourish. Runs client-side only; never affects state. */
+
   play(target: HTMLElement, options: O): Promise<void>
 }
 
@@ -258,10 +184,6 @@ export interface HandlerPlugin<O = Record<string, unknown>> {
   key: RegistryKey
   handle(event: GameEvent, state: SessionState, options: O): void | Promise<void>
 }
-
-// ---------------------------------------------------------------------------
-// Registry implementation
-// ---------------------------------------------------------------------------
 
 export type RegistryKind =
   | 'style' | 'scoring' | 'input' | 'transport' | 'lifeline'
@@ -296,7 +218,6 @@ export function list(kind: RegistryKind): RegistryKey[] {
   return [...(registries.get(kind)?.keys() ?? [])]
 }
 
-/** Validate every plugin key referenced by a config before the show starts. */
 export function validateConfigPlugins(config: GameShowConfig): string[] {
   const errors: string[] = []
   const check = (kind: RegistryKind, key: RegistryKey | null | undefined, where: string) => {

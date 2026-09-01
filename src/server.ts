@@ -1,17 +1,3 @@
-/**
- * SHOW SERVER — the thing a host actually launches.
- *
- * `npm run show [presets/your-show.ts]`
- *
- * Wires the pieces together and does nothing clever:
- *   preset -> resolveConfig -> preflight -> session -> transport -> command loop
- *
- * Two ordering rules matter. `bootstrap` must be imported FIRST so the plugins
- * are registered before preflight looks for them, and preflight must run before
- * anything is served — finding out that a round references an unimplemented
- * style is worth an error at launch and unforgivable mid-show.
- */
-
 import { validateConfigPluginsT1 } from './registry/bootstrap'
 
 import { randomUUID } from 'node:crypto'
@@ -75,12 +61,6 @@ function requireNumber(value: unknown, field: string): number {
   return value
 }
 
-/**
- * Translate one host command into ONE host action's worth of intents.
- *
- * Everything returned here goes to a single `dispatchHostAction` call, which is
- * what makes each press reversible by exactly one undo press.
- */
 function intentsForCommand(state: SessionState, type: string, payload: unknown): Intent[] {
   const fields = (payload ?? {}) as Record<string, unknown>
 
@@ -112,9 +92,6 @@ function intentsForCommand(state: SessionState, type: string, payload: unknown):
     case 'next':
       return [{ type: 'setPhase', phase: 'board' }]
 
-    // The whole round boundary in one batch (T2.2-L2). `advanceToNextRound`
-    // throws on the last round and on an unresolved elimination tie; a throw
-    // here rejects the command before any `seq` is consumed.
     case 'advanceRound': {
       const eliminateTeamId = typeof fields['eliminateTeamId'] === 'string'
         ? fields['eliminateTeamId']
@@ -122,8 +99,6 @@ function intentsForCommand(state: SessionState, type: string, payload: unknown):
       return advanceToNextRound(state, { eliminateTeamId })
     }
 
-    // Leaves a title card. Never advances the round — the advance already
-    // happened in the batch that put the show into this phase.
     case 'continue': {
       if (state.phase === 'intermission') {
         const round = currentRound(state.config, state.roundIndex)
@@ -133,8 +108,6 @@ function intentsForCommand(state: SessionState, type: string, payload: unknown):
       throw new Error(`[server] "continue" is not valid from phase "${state.phase}"`)
     }
 
-    // Ends the SHOW, from any round. `roundIndex` never moves, so it always
-    // points at a real round (T2.2-L6).
     case 'endRound':
       return [{ type: 'setPhase', phase: 'final' }]
 
@@ -155,8 +128,6 @@ async function main(): Promise<void> {
 
   const config: GameShowConfig = resolveConfig(await loadPreset(presetPath))
 
-  // Preflight. Every plugin key the config references must be registered, and
-  // that includes built-in style kinds this build may not implement.
   const errors = validateConfigPluginsT1(config)
   if (errors.length > 0) {
     console.error(`[server] "${presetPath}" cannot run:`)
@@ -179,8 +150,7 @@ async function main(): Promise<void> {
       if (!state.config.runtime.undo.enabled) throw new Error('[server] undo is disabled for this show')
       state = undo(state, state.config.runtime.undo.depth).state
     } else {
-      // Build the intents FIRST: a rejected command must not consume a
-      // sequence number and leave a hole in the audit trail.
+
       const intents = intentsForCommand(state, command.type, command.payload)
       seq++
       state = dispatchHostAction(state, intents, seq, Date.now()).state
@@ -188,7 +158,6 @@ async function main(): Promise<void> {
     broadcastState(handle, state, state.config)
   })
 
-  // Seed every channel so a client that connects later has something to render.
   broadcastState(handle, state, state.config)
 
   const origin = `http://${lanAddress()}:${port}`

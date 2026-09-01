@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-/**
- * Test aggregator — discovers and runs every `src/**\/*.test.ts`.
- *
- * The project deliberately has no test framework: checks are plain scripts that
- * throw on failure (see `process/context/tests/all-tests.md`). What was missing
- * was a way to run all of them without hand-listing files in package.json, which
- * is the only thing the file count was actually making painful. This is that,
- * in ~60 lines and zero dependencies.
- *
- * Run: `npm test` (which is `tsx scripts/run-tests.mjs`).
- *
- * Files run in the SAME process, in sorted order, so the plugin registry is
- * shared between them. Tests must therefore register unique keys — the registry
- * throws on a duplicate, which is the intended signal, not a flake.
- */
 
 import { readdir } from 'node:fs/promises'
 import path from 'node:path'

@@ -1,11 +1,3 @@
-/**
- * EXAMPLE PRESET — a three-round school assembly show.
- *
- * Demonstrates the whole point of the cascade: the engine has no idea what
- * "double points round" or "final wager" mean. They are just overrides.
- * Nothing below required a line of engine code.
- */
-
 import type { GameShowConfigInput } from '../src/config/types'
 
 export const schoolAssembly: GameShowConfigInput = {
@@ -15,7 +7,6 @@ export const schoolAssembly: GameShowConfigInput = {
     subtitle: 'Inter-Class Championship',
   },
 
-  // ---- School branding: change these four values, change the whole look ----
   theme: {
     color: {
       bg: '#101426',
@@ -31,7 +22,6 @@ export const schoolAssembly: GameShowConfigInput = {
     scoreboard: { position: 'bottom', style: 'bars' },
   },
 
-  // ---- Four class teams, pre-authored so the lobby is instant ----
   teams: {
     teams: [
       { id: 'x', name: 'Class X', color: '#e8453c' },
@@ -42,17 +32,16 @@ export const schoolAssembly: GameShowConfigInput = {
     membership: { assignment: 'preassigned' },
   },
 
-  // ---- Stage-only show: hardware buzzers, no audience phones ----
   join: { method: 'none' },
   rules: {
     buzz: {
       inputs: [{
         kind: 'keyboard',
-        // Four USB numpads -> four keys. ~1ms, no network, no cheating.
+
         keyMap: { '1': 'x', '2': 'y', '3': 'z', '4': 'w' },
       }],
-      arbitration: 'arrival',   // local keyboard: arrival order IS truth
-      graceWindowMs: 0,         // no network skew to correct for
+      arbitration: 'arrival',
+      graceWindowMs: 0,
       requireArming: true,
       falseStart: 'lockoutMs',
     },
@@ -67,7 +56,7 @@ export const schoolAssembly: GameShowConfigInput = {
   program: {
     carryScores: true,
     rounds: [
-      // ---- ROUND 1: standard Jeopardy board ----
+
       {
         id: 'r1',
         title: 'General Knowledge',
@@ -84,8 +73,6 @@ export const schoolAssembly: GameShowConfigInput = {
         intro: { enabled: true, durationMs: 3000, text: 'Round 1' },
       },
 
-      // ---- ROUND 2: double points, faster clock, no steals ----
-      // Note: ZERO engine changes. Pure config delta.
       {
         id: 'r2',
         title: 'Double Trouble',
@@ -105,13 +92,12 @@ export const schoolAssembly: GameShowConfigInput = {
             timer: { questionSec: 20, warnAtSec: 5 },
             wrongAnswer: { allowSteal: false },
           },
-          theme: { color: { accent: '#ff6b35' } },  // visual cue: stakes are up
+          theme: { color: { accent: '#ff6b35' } },
         },
         intro: { enabled: true, durationMs: 3000, text: 'Round 2 — Double Points' },
         intermissionAfter: { enabled: true, text: 'Short break' },
       },
 
-      // ---- FINAL: one question, hidden wagers, comeback possible ----
       {
         id: 'final',
         title: 'Final Question',
@@ -127,7 +113,7 @@ export const schoolAssembly: GameShowConfigInput = {
               wager: {
                 enabled: true,
                 maxRule: 'currentScore',
-                minimumAllowance: 500,   // teams on 0 can still play
+                minimumAllowance: 500,
                 hiddenUntilReveal: true,
               },
               allowNegative: true,
@@ -168,7 +154,7 @@ export const schoolAssembly: GameShowConfigInput = {
             answer: 'Carbon dioxide',
             acceptedAnswers: ['CO2', 'carbon dioxide'],
             points: 200,
-            // Per-question override — the deepest layer of the cascade.
+
             overrides: { timer: { questionSec: 45 } },
             trivia: 'Roughly 0.04% of the atmosphere is CO2.',
           },

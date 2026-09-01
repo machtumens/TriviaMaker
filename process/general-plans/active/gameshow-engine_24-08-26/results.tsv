@@ -1,7 +1,0 @@
-cycle	date	verdict	gaps_fail	gaps_concern	gaps_total	loop_status	note
-0	2026-08-24	BLOCKED	1	5	6	RUNNING	baseline outer-pvl; F1 undo granularity FAIL
-1	2026-08-24	SUPPLEMENT_APPLIED	0	0	0	RUNNING	cycle 1: F1 closed via L2a batch-union; F2/F3/F5/F6/F7/F8 closed; awaiting V1 re-run
-2	2026-08-24	CONDITIONAL	0	4	3	RUNNING	cycle 2 V1 re-run: F1-F8 verified closed; new G1/G2/G3; G2 material (buildBoard content path)
-3	2026-08-24	SUPPLEMENT_APPLIED	0	0	0	RUNNING	cycle 3: G2 closed via L16 GridBuildOptions + resolveRoundContent; G1 dispatchHostAction; G3 table fix; F2/F7 nits
-4	2026-08-24	CONDITIONAL	0	3	3	RUNNING	cycle 4: G1/G2/G3 verified closed; new H1 material (board never reaches UI), H2/H3 minor; gap count flat 3->3, escalating to user
-5	2026-08-24	SUPPLEMENT_APPLIED	0	0	0	HALTED_USER_ACCEPTED	cycle 5 FINAL: H1 closed via L17 broadcastState board delivery+redaction; H2/H3 closed; loop terminated by user decision; EXECUTE authorized

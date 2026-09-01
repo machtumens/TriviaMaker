@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-/**
- * Stage/host bundle isolation — SPEC AC#7 (bundle half).
- *
- * The stage bundle must not be able to reach the host bundle. Redaction at the
- * transport boundary keeps answers out of the stage PAYLOAD; this keeps them out
- * of the stage BUNDLE. Two independent mechanisms, because "the projector showed
- * the answer key" is not a bug you get to fix after the fact.
- *
- * Source-level only: it reads import specifiers, it does not walk the built
- * graph. A transitive import through a third module would not be caught here —
- * that would need bundle analysis, which is future work.
- *
- * Exit 0 = clean. Exit 1 = a forbidden import, printed with file and line.
- */
 
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -21,7 +7,6 @@ import { fileURLToPath } from 'node:url'
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const STAGE_DIR = path.join(ROOT, 'src', 'stage')
 
-/** Path-segment boundaries stop `hostNote` / `hosting` from matching. */
 const FORBIDDEN = [
   /(^|\/)\.\.\/host(\/|$)/,
   /(^|\/)host\//,

@@ -1,23 +1,3 @@
-/**
- * LOCAL TRANSPORT — one `node:http` server, zero dependencies. Key: `'local'`.
- *
- * Serves three things on one port for the whole show:
- *   - `GET /events/{stage,host}` — Server-Sent Events, one stream per channel.
- *   - `POST /command`            — host commands, gated on a session token.
- *   - `GET /*`                   — the built stage and host bundles.
- *
- * Static files are served by this process rather than a dev server because a
- * dev server is one more thing that can die twenty minutes into a live event.
- *
- * SECURITY NOTES (both deliberate, both bounded by the local-LAN threat model):
- *   - Every static path is resolved and prefix-checked against `staticDir`.
- *     Without that, anything on the venue wifi could read the host's disk.
- *   - The token comparison is a plain string compare, not constant-time. With a
- *     122-bit `crypto.randomUUID()` secret on a LAN for the length of one show,
- *     a timing side-channel is not a credible attack. Revisit if this transport
- *     is ever exposed beyond the venue network.
- */
-
 import http from 'node:http'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -28,16 +8,16 @@ type Channel = 'stage' | 'host' | 'player'
 type CommandHandler = (cmd: { from: string; type: string; payload: unknown }) => void
 
 export interface LocalTransportOptions {
-  /** 0 (the default) asks the OS for an ephemeral port. */
+
   port?: number
-  /** Session secret every `POST /command` must present. */
+
   hostToken: string
-  /** Directory the built bundles are served from. */
+
   staticDir?: string
 }
 
 export interface LocalTransportHandle extends TransportHandle {
-  /** The port actually bound — meaningful when `port: 0` was requested. */
+
   readonly port: number
 }
 
@@ -59,11 +39,6 @@ const EVENT_ROUTES: Record<string, Channel> = {
   '/events/host': 'host',
 }
 
-/**
- * Friendly URLs for the built entry points. Vite mirrors each entry's path
- * under `dist/`, so these keep the printed host/stage URLs short and typeable
- * on a phone at the back of a hall.
- */
 const STATIC_ALIASES: Record<string, string> = {
   '/': 'stage/index.html',
   '/stage.html': 'stage/index.html',
@@ -111,11 +86,7 @@ export async function startLocalTransport(
     player: new Set(),
   }
   const sockets = new Set<Socket>()
-  /**
-   * The most recent frame per channel, replayed to a client the moment it
-   * connects. Without this a projector opened mid-show sits blank until the
-   * host happens to do something — SSE has no concept of "current value".
-   */
+
   const retained: Record<Channel, string | null> = { stage: null, host: null, player: null }
   let commandHandler: CommandHandler | null = null
 
@@ -125,7 +96,7 @@ export async function startLocalTransport(
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     })
-    // Opening comment flushes headers so the client's `open` event fires now.
+
     res.write(': connected\n\n')
     const current = retained[channel]
     if (current !== null) res.write(current)
@@ -143,13 +114,10 @@ export async function startLocalTransport(
     }
 
     const alias = STATIC_ALIASES[decoded]
-    // Strip leading slashes so the request is always resolved RELATIVE to the
-    // static root; `path.resolve(root, '/etc/passwd')` would otherwise return
-    // the absolute path unchanged.
+
     const relativeRequest = alias ?? decoded.replace(/^\/+/, '')
     const resolved = path.resolve(staticRoot, relativeRequest)
 
-    // Containment check: anything that escapes the root is refused outright.
     const fromRoot = path.relative(staticRoot, resolved)
     if (fromRoot.startsWith('..') || path.isAbsolute(fromRoot)) {
       sendText(res, 403, 'forbidden')
@@ -254,7 +222,6 @@ export async function startLocalTransport(
       commandHandler = handler
     },
 
-    // Compensated buzz arbitration is T3+; nothing in T1 reads this.
     rtt() {
       return 0
     },
@@ -266,7 +233,7 @@ export async function startLocalTransport(
       }
       await new Promise<void>((resolve, reject) => {
         server.close(error => (error ? reject(error) : resolve()))
-        // SSE responses hold their sockets open; close() alone would hang.
+
         for (const socket of sockets) socket.destroy()
         sockets.clear()
       })

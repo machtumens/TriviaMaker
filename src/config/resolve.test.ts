@@ -1,17 +1,8 @@
-/**
- * Self-check for the cascade. Run: npm test
- *
- * deepMerge + resolveConfig are load-bearing — if they break, every layer of
- * customisation silently collapses to defaults and the show looks wrong on
- * stage with no error. That is exactly the failure this file exists to catch.
- */
-
 import assert from 'node:assert/strict'
 import { deepMerge, resolveConfig, rulesForRound, rulesForQuestion, redactQuestion } from './resolve'
 import { DEFAULT_CONFIG } from './defaults'
 import type { GameShowConfigInput, Round, Question } from './types'
 
-// --- deepMerge -------------------------------------------------------------
 {
   const base = { a: 1, nested: { x: 1, y: 2 }, arr: [1, 2] }
   const out = deepMerge(base, { nested: { y: 99 } } as never)
@@ -20,8 +11,7 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(out.a, 1, 'untouched keys survive')
 }
 {
-  // Arrays must REPLACE. Positional merging of question/team arrays is never
-  // what an author means, and silently produces frankenstein content.
+
   const out = deepMerge({ arr: [1, 2, 3] }, { arr: [9] } as never)
   assert.deepEqual(out.arr, [9], 'arrays replace, not concat')
 }
@@ -31,7 +21,6 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(deepMerge(base, { b: undefined } as never).b, 2, 'undefined values skipped')
 }
 
-// --- resolveConfig ---------------------------------------------------------
 {
   const cfg = resolveConfig({ meta: { id: 't', title: 'Test' } })
   assert.equal(cfg.rules.buzz.graceWindowMs, 200, 'defaults fill in')
@@ -39,7 +28,7 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(cfg.version, DEFAULT_CONFIG.version, 'version inherited')
 }
 {
-  // extends chain: parent -> child, child wins
+
   const parent: GameShowConfigInput = {
     meta: { id: 'parent', title: 'P' },
     rules: { timer: { questionSec: 45 }, buzz: { graceWindowMs: 300 } },
@@ -70,7 +59,6 @@ import type { GameShowConfigInput, Round, Question } from './types'
   )
 }
 
-// --- round + question override layers --------------------------------------
 {
   const cfg = resolveConfig({
     meta: { id: 't', title: 'T' },
@@ -95,7 +83,6 @@ import type { GameShowConfigInput, Round, Question } from './types'
   assert.equal(qr.scoring.multiplier, 2, 'round override still applies under question')
 }
 
-// --- redaction: the answer key must never leave the host boundary ----------
 {
   const q: Question = {
     id: 'q1', kind: 'text', prompt: 'P', answer: 'SECRET',

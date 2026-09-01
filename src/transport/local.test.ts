@@ -1,17 +1,3 @@
-/**
- * Local transport — PLAN Sub-Phase 4 (item 19).
- *
- * Fully automated: binds an ephemeral port and tears itself down. Covers the
- * two things that would actually hurt at a live event — a forged host command
- * from another device on the venue wifi, and a path-traversal read of the
- * host's laptop — plus SSE delivery and real teardown.
- *
- * Requests are made with raw `node:http` rather than `fetch` on purpose: the
- * WHATWG URL parser normalises `/../../etc/passwd` to `/etc/passwd` before it
- * ever leaves the client, which would silently make the traversal test pass
- * without the server ever being asked the dangerous question.
- */
-
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import path from 'node:path'
@@ -109,7 +95,6 @@ try {
   assert.ok(handle.port > 0, 'an ephemeral port was bound')
   assert.equal(handle.rtt('anyone'), 0, 'rtt is a documented stub in T1')
 
-  // --- (a) no token / wrong token is rejected, handler never runs ----------
   {
     const noToken = await request(handle.port, {
       method: 'POST', path: '/command',
@@ -126,7 +111,6 @@ try {
     assert.equal(received.length, 0, 'the command handler was never invoked')
   }
 
-  // --- (b) the correct token is accepted and dispatched -------------------
   {
     const ok = await request(handle.port, {
       method: 'POST', path: '/command',
@@ -139,7 +123,6 @@ try {
     assert.deepEqual(received[0]?.payload, { questionId: 'q1' }, 'the payload is passed through')
   }
 
-  // --- malformed bodies fail cleanly, they do not crash the show ----------
   {
     const badJson = await request(handle.port, { method: 'POST', path: '/command', body: 'not json' })
     assert.equal(badJson.status, 400, 'a non-JSON body is a client error')
@@ -150,7 +133,6 @@ try {
     assert.equal(received.length, 1, 'neither reached the handler')
   }
 
-  // --- (c) SSE frames reach a subscribed client ----------------------------
   {
     const stage = await openSse(handle.port, '/events/stage')
     assert.equal(stage.status, 200, 'the stage stream opened')
@@ -161,16 +143,12 @@ try {
     const frame = await stage.nextFrame()
     assert.match(frame, /\{"foo":1\}/, 'the broadcast payload arrived on the stage channel')
 
-    // A channel with no subscribers is a safe no-op.
     assert.doesNotThrow(() => handle.broadcast('player', { foo: 2 }), 'broadcasting to nobody is fine')
     stage.close()
   }
 
-  // --- a client connecting LATE still gets the current state ---------------
   {
-    // SSE has no notion of a current value. Without a retained frame, a
-    // projector plugged in mid-show sits blank until the host next presses
-    // something — which is exactly when nobody wants to be pressing things.
+
     handle.broadcast('stage', { round: 'already in progress' })
     const late = await openSse(handle.port, '/events/stage')
     const frame = await late.nextFrame()
@@ -178,7 +156,6 @@ try {
     late.close()
   }
 
-  // --- static serving ------------------------------------------------------
   {
     const page = await request(handle.port, { path: '/stage.html' })
     assert.equal(page.status, 200, 'the stage entry point is served')
@@ -192,7 +169,6 @@ try {
     assert.equal(missing.status, 404, 'a missing file is a 404')
   }
 
-  // --- (e) path traversal is contained -------------------------------------
   {
     const TRAVERSALS = [
       '/../../../etc/passwd',
@@ -202,7 +178,7 @@ try {
     ]
     for (const target of TRAVERSALS) {
       const res = await request(handle.port, { path: target })
-      // Never 200 — the assertion below is the whole point of the case.
+
       assert.ok(
         res.status === 403 || res.status === 404,
         `"${target}" must be refused with 403/404, never 200 (got ${res.status})`,
@@ -215,7 +191,6 @@ try {
   await rm(staticDir, { recursive: true, force: true })
 }
 
-// --- (d) teardown is real -----------------------------------------------------
 {
   await assert.rejects(
     () => request(handle.port, { path: '/stage.html' }),

@@ -1,22 +1,5 @@
-/**
- * HOST CONTROLLER — the only client that sees answers.
- *
- * Receives the unredacted state over SSE and POSTs commands back, each carrying
- * the session token from the URL. Without a valid token the server refuses the
- * command, which is what stops anyone else on the venue wifi from awarding
- * themselves points.
- *
- * Two live-event rules shape the UI:
- *   - UNDO is always visible and always one tap away. Mid-show, the host does
- *     not have time to find it.
- *   - The board arrives pre-built from the server. This file never calls
- *     `buildBoard`, exactly like the stage view.
- */
-
 import type { BroadcastPayload } from '../engine/broadcast'
 
-// Derived from the payload rather than imported from the engine: this file only
-// ever sees what actually came over the wire.
 type HostTeam = BroadcastPayload['teams'][number]
 type HostRoundConfig = BroadcastPayload['config']['program']['rounds'][number]
 
@@ -35,7 +18,7 @@ function requireRoot(): HTMLElement {
 const root = requireRoot()
 
 let latest: BroadcastPayload | null = null
-/** Remaining time captured at the moment of pausing — the clock anchor is cleared server-side. */
+
 let pausedRemainingMs: number | null = null
 let lastError: string | null = null
 
@@ -95,7 +78,6 @@ function renderTopBar(payload: BroadcastPayload): HTMLElement {
   return bar
 }
 
-/** Renderer for `hostComponent: 'grid-host-board'`. */
 function renderBoard(payload: BroadcastPayload): HTMLElement {
   const board = el('div', 'board')
   const meta = payload.board.meta ?? {}
@@ -118,7 +100,7 @@ function renderBoard(payload: BroadcastPayload): HTMLElement {
       }
       const tile = el('button')
       tile.append(el('span', 'value', String(pointLadder[row] ?? '')))
-      // The host board carries real prompts — that is the host preview.
+
       tile.append(el('span', 'prompt', cell.label))
       tile.disabled = !available.has(cell.questionId) || payload.phase !== 'board'
       tile.addEventListener('click', () => { void send('select', { questionId: cell.questionId }) })
@@ -145,13 +127,6 @@ function renderQuestionCard(payload: BroadcastPayload): HTMLElement | null {
   return card
 }
 
-/**
- * Who is tied for lowest, if `eliminateLowest` is about to fire.
- *
- * Computed client-side from data the payload already carries so the host is
- * offered the choice up front, instead of clicking blind and being rejected by
- * the server (T2.2-L3). `null` means elimination does not apply at all.
- */
 function eliminationTieCandidates(
   round: HostRoundConfig | undefined,
   teams: readonly HostTeam[],
@@ -171,8 +146,6 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
     return row
   }
 
-  // Title-card phases. `copy.host.skip` is reused here — there is no dedicated
-  // "Continue" string in `CopyStrings` (T2.2-L8, disclosed compromise).
   if (payload.phase === 'roundIntro' || payload.phase === 'intermission') {
     row.append(button(payload.copy.host.skip, 'primary', () => { void send('continue') }))
     return row
@@ -200,14 +173,11 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
   }
 
   if (payload.phase === 'reveal') {
-    // The host already knows whether the round is finished (the server sent
-    // `isComplete` with the board), so the decision is made here rather than
-    // making the server rebuild a board just to answer the same question.
+
     if (!payload.round.isComplete) {
       row.append(button(payload.copy.host.next, 'primary', () => { void send('next') }))
     } else {
-      // Advancing and ending are DIFFERENT actions. "End Show" never advances
-      // `roundIndex` (T2.2-L6), so it is the only offer on the last round.
+
       const isLastRound = payload.roundIndex >= payload.config.program.rounds.length - 1
       if (isLastRound) {
         row.append(button(payload.copy.host.endRound, 'primary', () => { void send('endRound') }))
@@ -215,8 +185,7 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
         const round = payload.config.program.rounds[payload.roundIndex]
         const candidates = eliminationTieCandidates(round, payload.teams)
         if (candidates && candidates.length > 1) {
-          // One button per tied team. The server validates the id against the
-          // same tie set, so a stale payload is rejected rather than obeyed.
+
           for (const team of candidates) {
             row.append(button(
               `Eliminate ${team.name} & continue`, 'wrong',
@@ -239,7 +208,7 @@ function renderClockControls(payload: BroadcastPayload): HTMLElement {
 
   const running = payload.clockStartedAt !== null
   row.append(button('Pause clock', '', () => {
-    // Capture what is left BEFORE the server clears the anchor.
+
     pausedRemainingMs = remainingMs(payload)
     void send('pause')
   }, !running))
@@ -263,7 +232,7 @@ function renderScores(payload: BroadcastPayload): HTMLElement {
 
 function renderUndoDock(): HTMLElement {
   const dock = el('div', 'undo-dock')
-  // Always present, in every phase, one tap. Non-negotiable mid-show.
+
   dock.append(button('Undo last action', 'primary', () => { void send('undo') }))
   return dock
 }
@@ -293,8 +262,6 @@ function render(payload: BroadcastPayload): void {
     next.append(clock)
   }
 
-  // In `final` the board belongs to a round that is over; showing it frozen
-  // reads as a stuck screen (T2.2-L11). Scores below are already unconditional.
   if (payload.phase === 'final') {
     next.append(el('div', 'banner', 'Show complete — final scores below.'))
   } else {
@@ -330,8 +297,6 @@ source.addEventListener('error', () => {
   if (latest) render(latest)
 })
 
-// Tick ONLY the clock text between state pushes. Re-rendering the whole tree
-// once a second would reset the host's scroll position mid-tap.
 setInterval(() => {
   const pill = document.getElementById('phase-pill')
   if (latest && pill) pill.textContent = phaseLabel(latest)

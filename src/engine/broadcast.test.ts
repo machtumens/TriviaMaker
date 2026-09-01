@@ -1,18 +1,3 @@
-/**
- * Broadcast redaction + board delivery — PLAN Sub-Phase 4 (item 17a).
- * SPEC AC#4, AC#7 (data half), AC#17, invariant #4.
- *
- * Self-contained by design: it registers its own fixture style rather than
- * importing `grid.ts` or `bootstrap.ts`, so Sub-Phase 4 stays genuinely
- * parallel-safe with Sub-Phase 3.
- *
- * The strongest assertion here is value-based, not key-based: every secret in
- * the fixture is a unique sentinel string, and the whole serialised stage and
- * player payloads are searched for it. A key-name scan alone would be fooled by
- * the config's legitimate `copy.answer` section and would miss a leak smuggled
- * under a differently-named field.
- */
-
 import assert from 'node:assert/strict'
 import { broadcastState } from './broadcast'
 import { register, type BoardModel, type Intent, type SessionState, type StylePlugin, type TransportHandle } from '../registry/index'
@@ -22,7 +7,6 @@ import type { Category, GameShowConfig, Round, StyleConfig } from '../config/typ
 const POINT_LADDER = [100, 200]
 const FIXTURE_STYLE_KEY = 'fixture-grid'
 
-// Unique sentinels — anything that leaks is unmistakably identifiable.
 const SECRETS = {
   answer: 'SENTINEL-ANSWER-8f21',
   accepted: 'SENTINEL-ACCEPTED-8f21',
@@ -83,7 +67,6 @@ const CONFIG: GameShowConfig = (() => {
   }
 })()
 
-// --- a minimal style plugin, defined here so this file stands alone --------
 interface FixtureOptions { pointLadder: number[]; categories: Category[] }
 
 const fixtureStyle: StylePlugin<FixtureOptions> = {
@@ -104,9 +87,7 @@ const fixtureStyle: StylePlugin<FixtureOptions> = {
         })
       }
     }
-    // `broadcastState` reads the audience point-value ladder back off the
-    // BOARD (never off `round.style`), so a style that wants point-value
-    // labels must publish its ladder here — exactly as `grid.ts` does.
+
     return { kind: FIXTURE_STYLE_KEY, cells, meta: { pointLadder: options.pointLadder } }
   },
   availableQuestions: (state, board) =>
@@ -127,13 +108,12 @@ const state: SessionState = {
   lockedOutTeamIds: new Set<string>(), clockStartedAt: null, styleState: {}, log: [],
 }
 
-// --- run it -----------------------------------------------------------------
 const calls: Array<{ channel: string; payload: unknown }> = []
 const fakeHandle: TransportHandle = {
   broadcast: (channel, payload) => { calls.push({ channel, payload }) },
-  onCommand: () => { /* not used here */ },
+  onCommand: () => {  },
   rtt: () => 0,
-  stop: async () => { /* not used here */ },
+  stop: async () => {  },
 }
 
 broadcastState(fakeHandle, state, CONFIG)
@@ -148,7 +128,6 @@ function boardOf(payload: Record<string, unknown>): BoardModel {
   return payload['board'] as BoardModel
 }
 
-// --- (a) all three channels, exactly once each ------------------------------
 {
   assert.equal(calls.length, 3, 'exactly three broadcasts, one per channel')
   assert.deepEqual(
@@ -162,7 +141,6 @@ const hostPayload = payloadFor('host')
 const stagePayload = payloadFor('stage')
 const playerPayload = payloadFor('player')
 
-// --- (b) the host board carries real content --------------------------------
 {
   const board = boardOf(hostPayload)
   assert.equal(
@@ -180,7 +158,6 @@ const playerPayload = payloadFor('player')
   assert.equal(unplayedCell?.consumed, false, 'unplayed cells are not marked consumed')
 }
 
-// --- (c) stage/player boards carry point values only ------------------------
 for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload]] as const) {
   const board = boardOf(payload)
   assert.equal(board.cells.length, boardOf(hostPayload).cells.length, `${name}: same cell count as host`)
@@ -194,13 +171,12 @@ for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload
       `${name}: cell "${cell.id}" shows its point value`,
     )
   }
-  // Applies regardless of consumption — a played tile is no more revealing.
+
   const consumedCell = board.cells.find(c => c.questionId === 'b-100')
   assert.equal(consumedCell?.consumed, true, `${name}: consumed flag still reaches the client`)
   assert.equal(consumedCell?.label, '100', `${name}: even a consumed tile shows only its value`)
 }
 
-// --- (d) no secret reaches stage or player, anywhere in the payload --------
 const REDACTED_FIELDS = ['answer', 'acceptedAnswers', 'hostNote', 'correctChoiceIndex', 'numericAnswer'] as const
 
 for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload]] as const) {
@@ -224,7 +200,6 @@ for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload
   assert.deepEqual(config.content.banks, [], `${name}: the content snapshot is stripped from the config`)
 }
 
-// --- the host/stage split is deliberate, not accidental --------------------
 {
   const question = hostPayload['currentQuestion'] as Record<string, unknown>
   assert.equal(question['answer'], `${SECRETS.answer}-a100`, 'the host keeps the answer key — that is the whole job')
@@ -233,19 +208,12 @@ for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload
   assert.equal(config.content.banks.length, 1, 'the host keeps the content snapshot')
 }
 
-// --- payload is JSON-safe (Sets would serialise to {}) ----------------------
 {
   assert.deepEqual(stagePayload['consumed'], ['b-100'], 'consumed travels as an array')
   assert.deepEqual(stagePayload['lockedOutTeamIds'], [], 'lockedOutTeamIds travels as an array')
   assert.equal(stagePayload['questionSec'], 30, 'the resolved countdown length travels with the payload')
 }
 
-// --- styleState survives the payload serialisation unchanged ---------------
-// The regression guard for the `Set`-collapses-to-`{}` class of bug that T1
-// already shipped once with `consumed`/`lockedOutTeamIds`. `styleState` is NOT
-// a named field on `BroadcastPayload` in this tier (no style needs it
-// client-side yet), so the round-trip property is proven on the `SessionState`
-// value itself — which is the value a future payload field would carry.
 {
   const STYLE_STATE = {
     revealedSlots: ['a', 'b'],
@@ -261,9 +229,6 @@ for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload
     'nested arrays and plain objects in styleState survive JSON serialisation byte-for-byte',
   )
 
-  // Control: this is the exact shape the doc comment forbids. If this ever
-  // starts passing, something began converting styleState and the JSON-safety
-  // rule can be relaxed — until then it is why the rule exists.
   const withSet = JSON.parse(JSON.stringify({ styleState: { picked: new Set(['a']) } })) as {
     styleState: { picked: unknown }
   }
@@ -272,15 +237,12 @@ for (const [name, payload] of [['stage', stagePayload], ['player', playerPayload
     'a Set in styleState collapses to {} — nothing converts it, unlike consumed',
   )
 
-  // The broadcast path itself still works with a populated styleState, and
-  // still leaks nothing: styleState is carried unredacted by design, so the
-  // value-based sentinel scan must stay clean.
   const styleCalls: Array<{ channel: string; payload: unknown }> = []
   const styleHandle: TransportHandle = {
     broadcast: (channel, payload) => { styleCalls.push({ channel, payload }) },
-    onCommand: () => { /* not used here */ },
+    onCommand: () => {  },
     rtt: () => 0,
-    stop: async () => { /* not used here */ },
+    stop: async () => {  },
   }
   broadcastState(styleHandle, stateWithStyle, CONFIG)
   assert.equal(styleCalls.length, 3, 'a populated styleState does not disturb the broadcast')

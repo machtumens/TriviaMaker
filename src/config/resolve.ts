@@ -1,25 +1,8 @@
-/**
- * ============================================================================
- * CONFIG RESOLUTION — the layered cascade
- * ============================================================================
- *
- *   defaults  ->  preset (extends)  ->  event config  ->  round override
- *                                                      ->  question override
- *                                                      ->  live host override
- *
- * Later layers deep-merge over earlier ones. This is the single mechanism that
- * makes "customise anything" tractable: an author specifies only deltas, and
- * the engine always reads a fully-resolved object. No `??` chains anywhere in
- * the engine, no undefined checks, no "which layer did this come from" bugs.
- */
-
 import type {
   GameShowConfig, GameShowConfigInput, DeepPartial, Round, RuleSet, Question,
 } from './types'
 import { DEFAULT_CONFIG } from './defaults'
 
-/** Arrays REPLACE rather than concatenate — merging arrays of questions or
- *  teams positionally is never what an author means. */
 export function deepMerge<T>(base: T, patch: DeepPartial<T> | undefined): T {
   if (patch === undefined || patch === null) return base
   if (Array.isArray(patch)) return patch as unknown as T
@@ -41,10 +24,6 @@ export function deepMerge<T>(base: T, patch: DeepPartial<T> | undefined): T {
 
 export type PresetLookup = (id: string) => GameShowConfigInput | undefined
 
-/**
- * Resolve an authored config into a complete one.
- * Follows `extends` chains, guarding against cycles.
- */
 export function resolveConfig(
   input: GameShowConfigInput,
   lookupPreset: PresetLookup = () => undefined,
@@ -71,12 +50,10 @@ export function resolveConfig(
   )
 }
 
-/** Rules in effect for a round — event rules + that round's overrides. */
 export function rulesForRound(config: GameShowConfig, round: Round): RuleSet {
   return deepMerge(config.rules, round.overrides?.rules)
 }
 
-/** Rules in effect for a single question — the deepest layer. */
 export function rulesForQuestion(
   config: GameShowConfig,
   round: Round,
@@ -85,10 +62,6 @@ export function rulesForQuestion(
   return deepMerge(rulesForRound(config, round), question.overrides)
 }
 
-/**
- * Everything visual for a round, resolved. The stage view calls this once per
- * round and emits the result as CSS custom properties.
- */
 export function presentationForRound(config: GameShowConfig, round: Round) {
   return {
     theme: deepMerge(config.theme, round.overrides?.theme),
@@ -98,7 +71,6 @@ export function presentationForRound(config: GameShowConfig, round: Round) {
   }
 }
 
-/** Flatten theme tokens into CSS custom properties for the document root. */
 export function themeToCssVars(theme: GameShowConfig['theme']): Record<string, string> {
   const vars: Record<string, string> = {}
   const walk = (obj: Record<string, unknown>, prefix: string) => {
@@ -120,11 +92,6 @@ export function themeToCssVars(theme: GameShowConfig['theme']): Record<string, s
   return vars
 }
 
-/**
- * Redact host-only fields before sending content to stage or player clients.
- * Call this at the transport boundary — never rely on the client to not render
- * a field it was given. The answer key must not exist in the projector bundle.
- */
 export function redactQuestion(
   q: Question,
   audience: 'stage' | 'player' | 'host',

@@ -1,15 +1,3 @@
-/**
- * Intent application — PLAN Sub-Phase 2 (item 7).
- *
- * Two things are proven per intent type:
- *   1. the keys `INTENT_TOUCHED_KEYS` declares actually change, and
- *   2. every OTHER top-level key is reference-equal (===) to the input's.
- *
- * (2) is the real assertion. If an intent quietly reallocates an untouched key
- * the snapshot-diff undo in `log.ts` still "works", but the log fills with
- * bogus diffs and reconnect/replay start disagreeing about state identity.
- */
-
 import assert from 'node:assert/strict'
 import { INTENT_TOUCHED_KEYS, applyIntent } from './intents'
 import { resolveConfig } from '../config/resolve'
@@ -46,12 +34,6 @@ const CONFIG: GameShowConfig = (() => {
   }
 })()
 
-/**
- * A 5-round variant of `CONFIG`. Needed from T2.2 on: `applyIntent`'s
- * `advanceRound` case is now BOUNDED, so the default single-round `CONFIG`
- * makes `roundIndex: 0` already the last valid index and every advance a no-op.
- * Blocks that mean to exercise a REAL advance must say so with this fixture.
- */
 const CONFIG_MULTI_ROUND: GameShowConfig = {
   ...CONFIG,
   program: {
@@ -86,14 +68,6 @@ function makeState(): SessionState {
   }
 }
 
-/**
- * Apply one intent and assert the touched/untouched split declared by
- * `INTENT_TOUCHED_KEYS` is exactly what happened.
- *
- * `stateOverride` exists for intents whose behaviour depends on state the
- * default fixture does not carry — `advanceRound` needs a multi-round config to
- * do anything at all now that it is bounded.
- */
 function applyAndCheck(
   intent: Intent,
   stateOverride: Partial<SessionState> = {},
@@ -118,7 +92,6 @@ function applyAndCheck(
   return { before, after }
 }
 
-// --- setPhase ---------------------------------------------------------------
 {
   const { after } = applyAndCheck({ type: 'setPhase', phase: 'reading' })
   assert.equal(after.phase, 'reading', 'setPhase moves the phase')
@@ -131,7 +104,6 @@ function applyAndCheck(
   )
 }
 
-// --- awardPoints ------------------------------------------------------------
 {
   const { before, after } = applyAndCheck({
     type: 'awardPoints', teamId: 'a', delta: 100, reason: 'correct answer',
@@ -142,33 +114,28 @@ function applyAndCheck(
   assert.equal(before.teams[0]?.score, 10, 'the input state is not mutated')
 }
 
-// --- consumeQuestion --------------------------------------------------------
 {
   const { before, after } = applyAndCheck({ type: 'consumeQuestion', questionId: 'q1' })
   assert.equal(after.consumed.has('q1'), true, 'the question is marked consumed')
   assert.equal(before.consumed.has('q1'), false, 'the input Set is not mutated')
 }
 
-// --- selectQuestion ---------------------------------------------------------
 {
   const { after } = applyAndCheck({ type: 'selectQuestion', questionId: 'q-other' })
   assert.equal(after.currentQuestionId, 'q-other', 'the selected question is recorded')
 }
 
-// --- setTurn ----------------------------------------------------------------
 {
   const { after } = applyAndCheck({ type: 'setTurn', teamId: 'b' })
   assert.equal(after.turnTeamId, 'b', 'the turn owner is recorded')
 }
 
-// --- lockout ----------------------------------------------------------------
 {
   const { before, after } = applyAndCheck({ type: 'lockout', teamId: 'a' })
   assert.equal(after.lockedOutTeamIds.has('a'), true, 'the team is locked out')
   assert.equal(before.lockedOutTeamIds.has('a'), false, 'the input Set is not mutated')
 }
 
-// --- startClock -------------------------------------------------------------
 {
   const QUESTION_SEC = 30
   const REMAINING_MS = 12_000
@@ -182,7 +149,7 @@ function applyAndCheck(
   )
 }
 {
-  // Untimed question (questionSec: null) must no-op rather than coerce null*1000.
+
   const base = makeState()
   const untimedConfig: GameShowConfig = {
     ...CONFIG,
@@ -193,13 +160,11 @@ function applyAndCheck(
   assert.equal(after.clockStartedAt, null, 'an untimed question has no clock to resume')
 }
 
-// --- stopClock --------------------------------------------------------------
 {
   const { after } = applyAndCheck({ type: 'stopClock' })
   assert.equal(after.clockStartedAt, null, 'stopClock clears the anchor')
 }
 
-// --- eliminate --------------------------------------------------------------
 {
   const { before, after } = applyAndCheck({ type: 'eliminate', teamId: 'b' })
   assert.equal(after.teams[1]?.eliminated, true, 'the team is eliminated')
@@ -207,33 +172,27 @@ function applyAndCheck(
   assert.equal(before.teams[1]?.eliminated, false, 'the input state is not mutated')
 }
 
-// --- setStyleState ----------------------------------------------------------
 {
   const NEXT = { revealedSlots: ['a', 'b'], ownership: { c1: 'teamA' } }
   const { after } = applyAndCheck({ type: 'setStyleState', nextStyleState: NEXT })
   assert.deepEqual(after.styleState, NEXT, 'the intent\'s value becomes the new styleState')
-  // Documents a sharp edge rather than endorsing it: the intent's object is
-  // adopted BY REFERENCE, so a caller that keeps and later mutates it would
-  // rewrite live state and the logged audit copy alike. Emitters must hand over
-  // a freshly-built object. Change this assertion if defensive cloning is ever
-  // added — it is here so that change is a deliberate one, not a silent one.
+
   assert.equal(after.styleState, NEXT, 'adopted by reference, not copied')
 }
 {
-  // Replacement, not a merge — a style must be able to DELETE one of its keys.
+
   const before: SessionState = { ...makeState(), styleState: { stale: 1, alsoStale: 2 } }
   const after = applyIntent(before, { type: 'setStyleState', nextStyleState: { fresh: 3 } })
   assert.deepEqual(after.styleState, { fresh: 3 }, 'the previous keys are gone, not merged')
 }
 
-// --- advanceRound -----------------------------------------------------------
 {
   const { before, after } = applyAndCheck({ type: 'advanceRound' }, { config: CONFIG_MULTI_ROUND })
   assert.equal(after.roundIndex, before.roundIndex + 1, 'advanceRound moves to the next round')
   assert.deepEqual(after.styleState, {}, 'and clears styleState')
 }
 {
-  // The reset matters most when there IS something to clear.
+
   const before: SessionState = {
     ...makeState(),
     config: CONFIG_MULTI_ROUND,
@@ -249,10 +208,8 @@ function applyAndCheck(
   )
 }
 
-// --- advanceRound: bounded at the last round (T2.2-L1 layer B) --------------
 {
-  // The default CONFIG has exactly 1 round, so roundIndex 0 IS the last valid
-  // index — the fixture this test needs, with no override.
+
   const before = makeState()
   assert.equal(
     before.config.program.rounds.length - 1, before.roundIndex,
@@ -266,23 +223,19 @@ function applyAndCheck(
   assert.deepEqual(after.styleState, before.styleState, 'a no-op advance does not clear styleState either')
 }
 {
-  // A populated styleState survives a REJECTED advance. Clearing it would be a
-  // half-applied intent: the visible round never changed, but the style's state
-  // for that round silently vanished.
+
   const before: SessionState = { ...makeState(), styleState: { revealed: ['x'] } }
   const after = applyIntent(before, { type: 'advanceRound' })
   assert.equal(after.roundIndex, 0, 'still on the last round')
   assert.deepEqual(after.styleState, { revealed: ['x'] }, 'the rejected advance left styleState alone')
 }
 
-// --- presentation-only intents touch nothing --------------------------------
 {
   applyAndCheck({ type: 'playSound', key: 'buzz' })
   applyAndCheck({ type: 'effect', key: 'confettiBurst', options: { intensity: 2 } })
   applyAndCheck({ type: 'custom', key: 'anything', payload: { a: 1 } })
 }
 
-// --- the table covers the whole Intent union --------------------------------
 {
   const EXPECTED: Array<Intent['type']> = [
     'setPhase', 'awardPoints', 'consumeQuestion', 'selectQuestion', 'setTurn',

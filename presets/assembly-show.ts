@@ -1,25 +1,3 @@
-/**
- * ASSEMBLY SHOW — a full-length, ready-to-run student council game show.
- *
- *   npm run build && npm run show presets/assembly-show.ts
- *
- * Two rounds of 16 questions each, an intermission, and a podium finale.
- * Runs roughly 35-45 minutes with four teams and a host who keeps it moving.
- *
- * Everything here works today: `grid` rounds, `flat` scoring, host-manual
- * adjudication, no player devices. Round 2 doubles the points and shortens
- * the clock via a per-round override — pure config, no engine code.
- *
- * TUNING FOR YOUR ROOM
- *   theme.type.baseSize  — the single most useful knob. Every font size is a
- *                          multiple of it. Bump to 28-30 for a big hall.
- *   timer.questionSec    — 30s is generous; drop to 20 if the room is restless.
- *   teams                — rename to your actual classes/houses.
- *
- * Questions are ordered EASIEST FIRST within each category, matching the point
- * ladder's row order.
- */
-
 import type { GameShowConfigInput } from '../src/config/types'
 
 export const assemblyShow: GameShowConfigInput = {
@@ -29,7 +7,6 @@ export const assemblyShow: GameShowConfigInput = {
     subtitle: 'Inter-Class Championship',
   },
 
-  // Stage-only: teams at the front, host adjudicates, no phones to manage.
   join: { method: 'none' },
 
   theme: {
@@ -39,7 +16,7 @@ export const assemblyShow: GameShowConfigInput = {
       tileText: '#f5c518',
       correct: '#42d392',
     },
-    // Bump to 28-30 if the back row squints. This scales EVERYTHING.
+
     type: { baseSize: 24, uppercaseCategories: true },
   },
 
@@ -61,8 +38,7 @@ export const assemblyShow: GameShowConfigInput = {
     turn: { picker: 'host', answerRights: 'turnOwner', maxAttempts: 1 },
     buzz: { enabled: false, requireArming: true },
     timer: { questionSec: 30, warnAtSec: 5, hostCanPause: true },
-    // No penalty for a wrong answer — kinder for a school audience, and it
-    // keeps a losing team engaged. Set penalty > 0 if you want it harsher.
+
     wrongAnswer: { penalty: 0, allowSteal: false },
     scoring: { engine: 'flat', multiplier: 1 },
   },
@@ -111,7 +87,7 @@ export const assemblyShow: GameShowConfigInput = {
           consumedStyle: 'dim',
           dramaticCategoryReveal: false,
         },
-        // Pure config — the engine has no idea what "double points" means.
+
         overrides: {
           rules: { scoring: { multiplier: 2 }, timer: { questionSec: 20 } },
           theme: { color: { accent: '#ff6b35' } },
@@ -127,7 +103,7 @@ export const assemblyShow: GameShowConfigInput = {
       id: 'assembly',
       title: 'Assembly Questions',
       categories: [
-        // ---------------------------------------------------------- ROUND 1
+
         {
           id: 'world', title: 'Around the World',
           questions: [
@@ -164,7 +140,7 @@ export const assemblyShow: GameShowConfigInput = {
             { id: 'wp4', kind: 'text', points: 400, prompt: 'What is the only common English word ending in the letters M-T?', answer: 'Dreamt', trivia: 'Along with its compounds, like "undreamt".' },
           ],
         },
-        // ---------------------------------------------------------- ROUND 2
+
         {
           id: 'music', title: 'Music',
           questions: [

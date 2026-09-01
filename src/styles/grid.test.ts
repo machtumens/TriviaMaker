@@ -1,11 +1,3 @@
-/**
- * Grid style contract — PLAN Sub-Phase 3 (item 13).
- *
- * The board is asserted against REAL fixture content, not just a cell count.
- * A `buildBoard` that returned the right number of empty cells would satisfy a
- * count-only test and still put a blank grid on the projector.
- */
-
 import assert from 'node:assert/strict'
 import { gridStyle, type GridBuildOptions } from './grid'
 import { resolveConfig } from '../config/resolve'
@@ -77,7 +69,6 @@ function makeState(consumed: string[] = []): SessionState {
 
 const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
 
-// --- shape ------------------------------------------------------------------
 {
   assert.equal(gridStyle.key, 'grid', 'registered under the "grid" key')
   assert.equal(board.kind, 'grid', 'board is tagged with its style kind')
@@ -87,7 +78,6 @@ const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
   )
 }
 
-// --- real content reaches the cells -----------------------------------------
 {
   const target = FIXTURE_CATEGORIES[0]?.questions[1]
   assert.ok(target, 'fixture question exists')
@@ -113,7 +103,6 @@ const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
   assert.equal(new Set(cellIds).size, cellIds.length, 'cell ids are unique')
 }
 
-// --- availability excludes consumed questions -------------------------------
 {
   const CONSUMED_ID = 'sci-200'
   const available = gridStyle.availableQuestions(makeState([CONSUMED_ID]), board)
@@ -122,7 +111,6 @@ const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
   assert.equal(available.includes('sci-100'), true, 'unconsumed questions remain available')
 }
 
-// --- onSelect returns exactly the two-intent host action --------------------
 {
   const intents = gridStyle.onSelect(makeState(), 'sci-100')
   assert.deepEqual(
@@ -135,13 +123,11 @@ const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
   )
 }
 
-// --- onResolved is empty for grid (L6) --------------------------------------
 {
   assert.deepEqual(gridStyle.onResolved(makeState(), true), [], 'no style-specific consequences')
   assert.deepEqual(gridStyle.onResolved(makeState(), false), [], 'including on a wrong answer')
 }
 
-// --- round completion --------------------------------------------------------
 {
   const allIds = board.cells.map(c => c.questionId)
   const partial = allIds.slice(0, allIds.length - 1)
@@ -155,7 +141,6 @@ const board = gridStyle.buildBoard(ROUND, OPTIONS, makeState())
   )
 }
 
-// --- a short category contributes fewer tiles, it does not crash ------------
 {
   const shortCategories: Category[] = [
     { id: 'short', title: 'Short', questions: [FIXTURE_CATEGORIES[0]!.questions[0]!] },

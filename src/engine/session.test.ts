@@ -1,16 +1,3 @@
-/**
- * Session — PLAN Sub-Phase 2 (item 11a), SPEC AC#11 / AC#18, invariant #2.
- *
- * The headline assertion is the `structuredClone` one. "Content is snapshotted
- * at launch" is the invariant that stops an editor tweak from silently changing
- * a question the host has already read out; a shallow copy would pass every
- * other test in this suite and fail exactly once, live.
- *
- * The rest covers `resolveRoundContent`'s failure paths. Every one of them is a
- * show-authoring mistake, and every one throws with the round id and the known
- * alternatives — a silently-empty board is the outcome being designed out.
- */
-
 import assert from 'node:assert/strict'
 import '../registry/bootstrap'
 import {
@@ -64,11 +51,6 @@ function makeConfig(round: Partial<Round> = {}): GameShowConfig {
   }
 }
 
-// ---------------------------------------------------------------------------
-// T2.2 round-boundary fixtures
-// ---------------------------------------------------------------------------
-
-/** `n` rounds, each optionally overridden. Ids are r1..rN. */
 function makeRounds(overrides: Array<Partial<Round>>): Round[] {
   return overrides.map((override, index) => ({
     id: `r${index + 1}`,
@@ -98,12 +80,10 @@ function team(id: string, score: number, eliminated = false): TeamState {
   }
 }
 
-/** A session parked in `reveal` — the only phase a round boundary starts from. */
 function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0): SessionState {
   return { ...createSession(config), phase: 'reveal', roundIndex, teams }
 }
 
-// --- invariant #2: content is snapshotted at launch -------------------------
 {
   const config = makeConfig()
   const session = createSession(config)
@@ -125,7 +105,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   assert.notEqual(session.config, config, 'the session config is a distinct object')
 }
 
-// --- initial session shape ---------------------------------------------------
 {
   const session = createSession(makeConfig())
   assert.equal(session.phase, 'lobby', 'a session starts in the lobby')
@@ -146,7 +125,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   assert.equal(session.joinCode, 'ABC123', 'an explicit join code is used verbatim')
 }
 
-// --- resolveRoundContent: happy paths ---------------------------------------
 {
   const config = makeConfig()
   const round = currentRound(config, 0)
@@ -165,7 +143,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- resolveRoundContent: every failure path is loud (AC#18) ---------------
 {
   const config = makeConfig()
   const round: Round = { id: 'r-nobank', title: 'No bank', style: GRID }
@@ -212,7 +189,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- currentRound fails loudly rather than rendering a blank show ----------
 {
   const config = makeConfig()
   assert.throws(
@@ -222,7 +198,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- dispatchHostAction: one host action, one event ------------------------
 {
   const state = createSession(makeConfig())
   const intents: Intent[] = [{ type: 'setPhase', phase: 'board' }]
@@ -236,7 +211,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   assert.equal(reverted.state.phase, 'lobby', 'and lands back in the lobby')
 }
 
-// --- resolveAnswer: the generic 3-intent adjudication shape (L6) -----------
 {
   let state = createSession(makeConfig())
   state = dispatchHostAction(state, [{ type: 'setPhase', phase: 'board' }], 1, 1000).state
@@ -276,11 +250,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// ===========================================================================
-// advanceToNextRound — the full branch matrix (T2.2-L1 .. L6)
-// ===========================================================================
-
-// --- normal advance: one advance, straight to the board --------------------
 {
   const config = makeMultiRoundConfig(makeRounds([{}, {}]))
   const state = revealState(config, [team('a', 10), team('b', 20)])
@@ -291,7 +260,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- intermissionAfter wins over the entered round's intro -----------------
 {
   const config = makeMultiRoundConfig(makeRounds([
     { intermissionAfter: { enabled: true, text: 'Back in 5' } },
@@ -305,7 +273,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- no intermission + the entered round has an intro -> roundIntro --------
 {
   const config = makeMultiRoundConfig(makeRounds([
     {},
@@ -319,7 +286,7 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-  // intro present but DISABLED is not an intro.
+
   const config = makeMultiRoundConfig(makeRounds([
     {},
     { intro: { enabled: false, durationMs: 1, text: 'Round 2' } },
@@ -331,7 +298,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- carryScores: false resets every non-zero score IN THE SAME BATCH ------
 {
   const config = makeMultiRoundConfig(makeRounds([{}, {}]), { carryScores: false })
   const state = revealState(config, [team('a', 300), team('b', 0), team('c', -50)])
@@ -360,7 +326,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- eliminateLowest: one clear loser --------------------------------------
 {
   const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
   const state = revealState(config, [team('a', 30), team('b', 5), team('c', 20)])
@@ -375,7 +340,7 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-  // Already-eliminated teams are not candidates, however low their score.
+
   const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
   const state = revealState(config, [team('a', 30), team('b', -999, true), team('c', 20)])
   assert.deepEqual(
@@ -384,7 +349,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- eliminateLowest: a tie is never auto-resolved (T2.2-L3) ---------------
 {
   const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
   const state = revealState(config, [team('a', 30), team('b', 5), team('c', 5)])
@@ -409,7 +373,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- eliminateLowest with nothing to contest -------------------------------
 {
   const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
   const oneLeft = revealState(config, [team('a', 30), team('b', 5, true)])
@@ -426,7 +389,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- minTeams skips rounds, in the same batch (T2.2-L5) --------------------
 {
   const config = makeMultiRoundConfig(makeRounds([
     {},
@@ -445,7 +407,7 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-  // The skip check runs against the POST-elimination count.
+
   const config = makeMultiRoundConfig(makeRounds([
     { eliminateLowest: true },
     { minTeams: 3 },
@@ -464,7 +426,7 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 {
-  // minTeams undefined / 0 never skips.
+
   const config = makeMultiRoundConfig(makeRounds([{}, { minTeams: 0 }, {}]))
   const state = revealState(config, [])
   assert.deepEqual(
@@ -474,7 +436,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- every remaining round fails minTeams: the show ends, index unmoved ----
 {
   const config = makeMultiRoundConfig(makeRounds([
     { eliminateLowest: true },
@@ -499,7 +460,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- T2.2-L1 layer A: the last round rejects the command outright ----------
 {
   const config = makeMultiRoundConfig(makeRounds([{}, {}]))
   const state = revealState(config, [team('a', 10)], 1)
@@ -519,7 +479,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   )
 }
 
-// --- the phase guard (T2.2-L10's defensive floor) --------------------------
 {
   const config = makeMultiRoundConfig(makeRounds([{}, {}]))
   for (const phase of ['board', 'lobby', 'armed', 'final'] as const) {
@@ -532,7 +491,6 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
   }
 }
 
-// --- the batch really is ONE undoable host action --------------------------
 {
   const config = makeMultiRoundConfig(makeRounds([
     { eliminateLowest: true },

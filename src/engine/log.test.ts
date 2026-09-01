@@ -1,12 +1,3 @@
-/**
- * Event log + generic undo — PLAN Sub-Phase 2 (item 10), SPEC AC#6.
- *
- * Cases (d) and (e) are the ones that matter most: they prove undo works at
- * HOST-ACTION granularity (Design Lock L2a). A host who presses "mark correct"
- * performs ONE action that happens to be three intents; pressing undo once must
- * put the room back exactly where it was, not two-thirds of the way.
- */
-
 import assert from 'node:assert/strict'
 import { applyIntentsWithLog, undo } from './log'
 import { resolveConfig } from '../config/resolve'
@@ -41,12 +32,6 @@ const CONFIG: GameShowConfig = (() => {
   }
 })()
 
-/**
- * A 4-round variant of `CONFIG`. From T2.2 on, `applyIntent`'s `advanceRound`
- * case is BOUNDED by `program.rounds.length`, so any block that parks
- * `roundIndex` above 0 and expects a REAL advance must supply a config with
- * enough rounds to make that advance legal.
- */
 const MULTI_ROUND_CONFIG: GameShowConfig = {
   ...CONFIG,
   program: {
@@ -91,7 +76,6 @@ function reversedSeqs(log: readonly GameEvent[]): Set<number> {
 
 const DEPTH = 50
 
-// --- (a) single-intent action: undo restores, log grows -------------------
 {
   const before = makeState()
   const applied = applyIntentsWithLog(
@@ -111,11 +95,10 @@ const DEPTH = 50
   assert.equal(result.state.log[1]?.name, applied.event.name, 'the reversal reuses the original event name')
 }
 
-// --- (b) depth bounds how far back undo can reach -------------------------
 {
   const EVENT_COUNT = 10
   const SMALL_DEPTH = 5
-  const OUT_OF_REACH_SEQ = EVENT_COUNT - SMALL_DEPTH   // the (N-depth)th event, 1-indexed
+  const OUT_OF_REACH_SEQ = EVENT_COUNT - SMALL_DEPTH
 
   let state = makeState()
   for (let seq = 1; seq <= EVENT_COUNT; seq++) {
@@ -127,9 +110,6 @@ const DEPTH = 50
   }
   assert.equal(state.log.length, EVENT_COUNT, 'N events logged')
 
-  // Undo until it refuses. Every undo APPENDS a reversal (L3), so reversals
-  // themselves consume window slots — the reachable count is bounded well
-  // below N, which is exactly the property being asserted.
   const MAX_ATTEMPTS = EVENT_COUNT * 2
   let successes = 0
   let refused = false
@@ -152,7 +132,6 @@ const DEPTH = 50
   assert.equal(undo(state, SMALL_DEPTH).undone, false, 'a further attempt is a no-op, not an error')
 }
 
-// --- (c) undo on an empty log is a no-op ----------------------------------
 {
   const state = makeState()
   const result = undo(state, DEPTH)
@@ -160,7 +139,6 @@ const DEPTH = 50
   assert.equal(result.state, state, 'state is returned untouched')
 }
 
-// --- (d) 2-intent host action (grid.onSelect shape) ------------------------
 {
   const before = makeState('board')
   const batch: Intent[] = [
@@ -179,7 +157,6 @@ const DEPTH = 50
   assert.equal(result.state.log.length, 2, 'log is 2 (one batched action + one reversal), never 3')
 }
 
-// --- (e) 3-intent host action (resolveAnswer shape) ------------------------
 {
   const before = makeState('armed')
   const batch: Intent[] = [
@@ -202,7 +179,6 @@ const DEPTH = 50
   assert.equal(result.state.log.length, 2, 'log is 2 (one batched action + one reversal), never 4')
 }
 
-// --- (f) a setStyleState batch reverses in exactly one undo ---------------
 {
   const ORIGINAL = { revealedSlots: ['a'], ownership: { c1: 'teamA' } }
   const before: SessionState = { ...makeState('board'), styleState: ORIGINAL }
@@ -229,10 +205,6 @@ const DEPTH = 50
   )
 }
 
-// --- (g) advanceRound touches TWO keys and both rewind in one undo ---------
-// The first intent in the codebase whose INTENT_TOUCHED_KEYS row names more
-// than one key. The batch-union snapshot is what makes this work; a per-intent
-// or single-key snapshot would leave roundIndex or styleState stranded.
 {
   const ORIGINAL = { revealed: ['x'], guesses: 4 }
   const before: SessionState = {
@@ -255,15 +227,8 @@ const DEPTH = 50
   assert.equal(result.state.log.length, 2, 'log is 2 (action + reversal), never 3')
 }
 
-// --- (h) a WHOLE round boundary reverses in exactly one undo (T2.2-L2/L4) --
-// The batch shape `advanceToNextRound` produces: an elimination, a score reset
-// per surviving team, the advance, and the entry phase. If any of these were a
-// separate host action, taking back an elimination would cost two undo presses
-// and the projector would show a half-undone state between them — the same
-// class of bug as T1's cycle-0 FAIL. This is the direct regression guard.
 {
-  // The top-level CONFIG has exactly one round, which the T2.2 bound would
-  // (correctly) refuse to advance past.
+
   const ORIGINAL_STYLE_STATE = { revealed: ['x'] }
   const before: SessionState = {
     ...makeState('reveal'),
@@ -307,14 +272,10 @@ const DEPTH = 50
     undo(result.state, DEPTH).undone, false,
     'a second press finds nothing left — the first one reversed the entire boundary',
   )
-  // Team C carried a non-zero score (5) and got no awardPoints reset intent of
-  // its own, yet its score is still restored: the touched-key union captures
-  // the WHOLE `teams` field once, not a per-team patch. Omitting a redundant
-  // awardPoints intent therefore never weakens undo coverage.
+
   assert.equal(result.state.teams[2]?.score, 5, 'a team with no awardPoints intent of its own is restored anyway')
 }
 
-// --- the batch payload keeps the full ordered intent list for audit -------
 {
   const batch: Intent[] = [
     { type: 'awardPoints', teamId: 'a', delta: 50, reason: 'correct answer' },

@@ -1,12 +1,3 @@
-/**
- * Flat scoring — PLAN Sub-Phase 3 (item 15), SPEC AC#8, invariant #3.
- *
- * Purity is proven by handing the plugin a DEEP-FROZEN state: in an ES module
- * (always strict mode) any assignment to a frozen object throws immediately.
- * A plugin that mutated state would blow up here instead of silently corrupting
- * the undo log months later.
- */
-
 import assert from 'node:assert/strict'
 import { flatScoring } from './flat'
 import { resolveConfig } from '../config/resolve'
@@ -59,7 +50,6 @@ function makeInput(overrides: Partial<ScoreInput> = {}): ScoreInput {
   }
 }
 
-// --- purity + determinism (SPEC AC#8) ---------------------------------------
 {
   const input = makeInput()
   let first: ScoreDelta[] | undefined
@@ -70,7 +60,6 @@ function makeInput(overrides: Partial<ScoreInput> = {}): ScoreInput {
   assert.equal(input.state.teams[0]?.score, 500, 'the input state is untouched')
 }
 
-// --- correct-answer formula --------------------------------------------------
 {
   const delta = flatScoring.score(makeInput())[0]
   assert.equal(delta?.delta, 200, 'face value at multiplier 1')
@@ -91,7 +80,6 @@ function makeInput(overrides: Partial<ScoreInput> = {}): ScoreInput {
   assert.equal(delta?.delta, 100, 'a steal is worth its configured fraction')
 }
 
-// --- wrong-answer formula ----------------------------------------------------
 {
   const delta = flatScoring.score(makeInput({ correct: false }))[0]
   assert.equal(delta?.delta, 0, 'default penalty is 0 — no loss for a wrong answer')
@@ -116,7 +104,6 @@ function makeInput(overrides: Partial<ScoreInput> = {}): ScoreInput {
   assert.equal(delta?.delta, 0, 'a question with no points is worth nothing, not NaN')
 }
 
-// --- (d) streak/comeback warn ONCE per process and never change the score ---
 {
   const plainDelta = flatScoring.score(makeInput())
   const streakRules = rulesWith(r => ({

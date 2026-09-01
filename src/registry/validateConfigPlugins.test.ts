@@ -1,22 +1,8 @@
-/**
- * Preflight self-check — SPEC AC#3, PLAN Sub-Phase 0 (items 1-2).
- *
- * `validateConfigPlugins()` is the only thing standing between a typo in a
- * preset and a crash mid-show in front of an audience. Every field it claims
- * to check is asserted here, plus a fully-valid config producing zero errors.
- *
- * Registry hygiene: this file registers ONLY throwaway keys prefixed
- * `vcp-test-` so it has no ordering dependency on `bootstrap.ts` and can never
- * collide with the real `grid`/`flat`/`local` registrations when the whole
- * suite runs in one process.
- */
-
 import assert from 'node:assert/strict'
 import { register, validateConfigPlugins } from './index'
 import { resolveConfig } from '../config/resolve'
 import type { GameShowConfig, Round } from '../config/types'
 
-// --- throwaway registrations, unique to this file --------------------------
 const TEST_TRANSPORT = 'vcp-test-transport'
 const TEST_SCORING = 'vcp-test-scoring'
 const TEST_LAYOUT = 'vcp-test-layout'
@@ -35,7 +21,6 @@ register('widget', { key: TEST_WIDGET })
 
 const BASE = resolveConfig({ meta: { id: 'preflight', title: 'Preflight' } })
 
-/** A config that is fully valid against the throwaway registrations above. */
 function validConfig(): GameShowConfig {
   const round: Round = {
     id: 'r1',
@@ -69,7 +54,6 @@ function validConfig(): GameShowConfig {
   }
 }
 
-/** Assert exactly one error, naming both the config path and the bad key. */
 function assertNamesBadKey(errors: string[], where: string, badKey: string) {
   assert.equal(errors.length, 1, `expected exactly one error, got: ${errors.join(' | ')}`)
   const [message] = errors
@@ -84,7 +68,6 @@ function assertNamesBadKey(errors: string[], where: string, badKey: string) {
   )
 }
 
-// --- (c) a fully valid config produces zero errors -------------------------
 {
   assert.deepEqual(
     validateConfigPlugins(validConfig()),
@@ -93,7 +76,6 @@ function assertNamesBadKey(errors: string[], where: string, badKey: string) {
   )
 }
 
-// --- (a) unregistered transport driver -------------------------------------
 {
   const cfg = validConfig()
   const bad: GameShowConfig = {
@@ -103,7 +85,6 @@ function assertNamesBadKey(errors: string[], where: string, badKey: string) {
   assertNamesBadKey(validateConfigPlugins(bad), 'runtime.transport.driver', 'no-such-transport')
 }
 
-// --- (b) every other checked field -----------------------------------------
 {
   const cfg = validConfig()
   const bad: GameShowConfig = {
@@ -158,7 +139,6 @@ function assertNamesBadKey(errors: string[], where: string, badKey: string) {
   assertNamesBadKey(validateConfigPlugins(bad), 'layout.widgets[0]', 'no-such-widget')
 }
 
-// --- a round-level scoring override is checked too -------------------------
 {
   const cfg = validConfig()
   const round: Round = {

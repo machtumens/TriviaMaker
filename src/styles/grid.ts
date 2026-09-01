@@ -1,23 +1,6 @@
-/**
- * GRID STYLE — the Jeopardy-shaped board. Registry key: `'grid'`.
- *
- * Column = category, row = point ladder rung. The plugin is deliberately
- * content-dumb: it never reads `round.bankId`/`round.categoryIds` itself.
- * The caller resolves those into real categories (`session.resolveRoundContent`)
- * and hands them in via `GridBuildOptions`, which keeps content resolution in
- * one place instead of once per style.
- *
- * `StylePlugin<O>`'s `O` is a free generic in the settled T0 contract, so
- * carrying resolved content in the options object needs no interface change.
- */
-
 import type { BoardModel, Intent, SessionState, StylePlugin } from '../registry/index'
 import type { Category, GridStyle, Round } from '../config/types'
 
-/**
- * A grid round's style config PLUS the content the caller already resolved.
- * Design Lock L16 — `buildBoard`'s only channel to real question data.
- */
 export type GridBuildOptions = GridStyle & { categories: Category[] }
 
 function cellId(round: Round, category: Category, row: number): string {
@@ -29,9 +12,6 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
   stageComponent: 'grid-board',
   hostComponent: 'grid-host-board',
 
-  // `_state` is required by the `StylePlugin` contract so styles CAN derive
-  // per-cell data from live state. A grid board does not need to — its cells
-  // come entirely from the round's content and ladder (T2.1 Design Lock L3).
   buildBoard(round: Round, options: GridBuildOptions, _state: SessionState): BoardModel {
     const cells: BoardModel['cells'] = []
 
@@ -40,22 +20,17 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
         const category = options.categories[col]
         if (!category) continue
         const question = category.questions[row]
-        // Authors are expected to order each category's questions to match the
-        // point ladder. A short category simply contributes fewer tiles rather
-        // than crashing the show or inventing a placeholder question.
+
         if (!question) continue
 
         cells.push({
           id: cellId(round, category, row),
           questionId: question.id,
-          // Real prompt text. `broadcastState` replaces it with the point value
-          // before this board reaches the stage or a player device (L17).
+
           label: question.prompt,
           row,
           col,
-          // Consumption lives in `state.consumed`, never on the board itself.
-          // `buildBoard` has no access to state, so the one call site that does
-          // (`broadcastState`) derives this per cell.
+
           consumed: false,
           special: question.special ?? null,
           meta: {
@@ -77,7 +52,7 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
         showCategoryHeaders: options.showCategoryHeaders,
         consumedStyle: options.consumedStyle,
         selection: options.selection,
-        // Category titles are stage-safe: the audience is meant to see them.
+
         categories: options.categories.map(category => ({
           id: category.id,
           title: category.title,
@@ -95,8 +70,7 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
   },
 
   onSelect(_state: SessionState, questionId: string): Intent[] {
-    // Two intents, ONE host action. `session.dispatchHostAction` logs them as a
-    // single event so one undo press puts the board back (L2a).
+
     return [
       { type: 'selectQuestion', questionId },
       { type: 'setPhase', phase: 'reading' },
@@ -104,8 +78,7 @@ export const gridStyle: StylePlugin<GridBuildOptions> = {
   },
 
   onResolved(_state: SessionState, _correct: boolean): Intent[] {
-    // Award/consume/advance are handled generically in `session.resolveAnswer`
-    // (L6). A grid board has no style-specific consequence on top of that.
+
     return []
   },
 

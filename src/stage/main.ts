@@ -1,21 +1,3 @@
-/**
- * STAGE VIEW — what the audience sees on the projector.
- *
- * Receives already-redacted state over SSE and renders it. Two rules govern
- * this file:
- *
- *   1. It NEVER imports from `../host/`. The answer key must not exist in this
- *      bundle at all, not merely go unrendered. `scripts/check-stage-host-isolation.mjs`
- *      enforces this mechanically.
- *   2. On a dropped connection it does NOT clear the screen. `EventSource`
- *      reconnects on its own; blanking the projector because the wifi hiccuped
- *      is the failure the "playable with zero players connected" invariant
- *      exists to prevent. The last known state stays up until a new one lands.
- *
- * The board arrives PRE-BUILT and PRE-REDACTED from `broadcastState`. This file
- * never calls `buildBoard` and never sees a question prompt it should not show.
- */
-
 import { themeToCssVars } from '../config/resolve'
 import type { BroadcastPayload } from '../engine/broadcast'
 
@@ -63,7 +45,6 @@ function renderRoundBar(payload: BroadcastPayload): HTMLElement {
   return bar
 }
 
-/** Renderer for `stageComponent: 'grid-board'`. */
 function renderGridBoard(payload: BroadcastPayload): HTMLElement {
   const board = el('main', 'board')
   const meta = payload.board.meta ?? {}
@@ -85,7 +66,7 @@ function renderGridBoard(payload: BroadcastPayload): HTMLElement {
     }
     for (let row = 0; row < rowCount; row++) {
       const cell = payload.board.cells.find(c => c.col === col && c.row === row)
-      // `label` is a point value here, never a prompt — see broadcast.ts.
+
       const tile = el('div', 'tile', cell?.label ?? '')
       tile.dataset['consumed'] = String(cell?.consumed ?? false)
       tile.dataset['empty'] = String(cell === undefined)
@@ -164,9 +145,7 @@ function render(payload: BroadcastPayload): void {
 
   const next = document.createDocumentFragment()
   next.append(renderRoundBar(payload))
-  // The board belongs to a round that is over — leaving it up reads as a stuck
-  // projector (T2.2-L11). The scoreboard below is already unconditional, so the
-  // final scores stay on screen.
+
   if (payload.phase === 'final') {
     next.append(el('h1', 'title', 'Show Complete'))
   } else {
@@ -176,8 +155,7 @@ function render(payload: BroadcastPayload): void {
 
   const overlay = renderQuestionOverlay(payload)
   root.replaceChildren(next)
-  // Always drop the previous overlay first — appending without removing would
-  // stack a new one on every state push.
+
   document.querySelector('.question-overlay')?.remove()
   if (overlay) document.body.append(overlay)
 }
@@ -190,14 +168,13 @@ function connect(): void {
       latest = JSON.parse(event.data) as BroadcastPayload
       render(latest)
     } catch (error) {
-      // A malformed frame is not a reason to blank the projector.
+
       console.error('[stage] could not render a state frame', error)
     }
   })
 
   source.addEventListener('error', () => {
-    // Deliberately empty. EventSource reconnects by itself and the last known
-    // state stays on screen while it does.
+
   })
 }
 
