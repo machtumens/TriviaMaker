@@ -186,10 +186,22 @@ try {
       assert.equal(res.body.includes('root:'), false, `"${target}" must not leak file content`)
     }
   }
+  {
+    const noToken = await request(handle.port, { path: '/events/host' })
+    assert.equal(noToken.status, 401, 'GET /events/host without a token must be refused')
+    assert.equal(
+      noToken.body.includes('"answer"'), false,
+      'a refused host stream must not emit any payload',
+    )
+
+    const wrongToken = await request(handle.port, { path: '/events/host?token=not-the-token' })
+    assert.equal(wrongToken.status, 401, 'GET /events/host with a wrong token must be refused')
+  }
 } finally {
   await handle.stop()
   await rm(staticDir, { recursive: true, force: true })
 }
+
 
 {
   await assert.rejects(

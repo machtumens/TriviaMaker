@@ -181,6 +181,13 @@ export async function startLocalTransport(
     if (req.method === 'GET') {
       const channel = EVENT_ROUTES[pathname]
       if (channel) {
+        if (channel === 'host') {
+          const query = new URL(req.url ?? '/', 'http://internal').searchParams
+          if (query.get('token') !== options.hostToken) {
+            sendText(res, 401, 'invalid host token')
+            return
+          }
+        }
         openStream(channel, res)
         return
       }

@@ -280,7 +280,7 @@ function render(payload: BroadcastPayload): void {
   root.replaceChildren(next)
 }
 
-const source = new EventSource(HOST_STREAM)
+const source = new EventSource(`${HOST_STREAM}?token=${encodeURIComponent(token)}`)
 
 source.addEventListener('message', event => {
   try {
