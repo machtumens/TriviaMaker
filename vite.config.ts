@@ -14,6 +14,8 @@ export default defineConfig({
         stage: here('src/stage/index.html'),
         host: here('src/host/index.html'),
         demo: here('src/index.html'),
+        local: here('src/local/index.html'),
+        localStage: here('src/local/stage.html'),
       },
     },
   },

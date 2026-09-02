@@ -62,6 +62,25 @@ overrides: {
 The one setting worth tuning for your room is `theme.type.baseSize`. Every
 font size is a multiple of it.
 
+## Running it on one laptop
+
+If the projector is on HDMI from the laptop, both surfaces are the same machine,
+so no server is needed at all:
+
+```bash
+npm run build && npx http-server dist
+```
+
+Open `local/index.html?token=local` for the host controls, click **Open
+projector window**, drag that window to the projector and press F11.
+
+The two windows sync over `BroadcastChannel`. The host window owns the engine;
+the projector window only renders what it is sent. Redaction is unchanged — the
+projector's JavaScript bundle contains no answers at all, not merely a view that
+hides them.
+
+Use `npm run show` instead when the host is a separate device such as a phone.
+
 ## The demo
 
 [machtumens.github.io/TriviaMaker](https://machtumens.github.io/TriviaMaker/) runs
