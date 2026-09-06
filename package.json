@@ -7,7 +7,8 @@
     "test": "tsx scripts/run-tests.mjs",
     "typecheck": "tsc --noEmit",
     "build": "vite build",
-    "show": "tsx src/server.ts"
+    "show": "tsx src/server.ts",
+    "check-packet": "tsx scripts/check-packet.ts"
   },
   "keywords": [],
   "author": "",

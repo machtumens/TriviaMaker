@@ -62,6 +62,109 @@ overrides: {
 The one setting worth tuning for your room is `theme.type.baseSize`. Every
 font size is a multiple of it.
 
+## Question packets
+
+Questions can live outside the show, in their own file. A packet is a plain JSON
+file of categories and questions — no rules, no theme, no rounds — so the same
+questions play in any show that names them.
+
+```json
+{
+  "packet": 1,
+  "title": "General Knowledge",
+  "categories": [
+    { "title": "Space", "questions": [
+      { "prompt": "Which planet is known as the Red Planet?", "answer": "Mars" },
+      { "prompt": "What is the name of the galaxy we live in?",
+        "answer": "The Milky Way", "accept": ["Milky Way"] }
+    ]}
+  ]
+}
+```
+
+**Only `prompt` and `answer` are required.** Ids, `kind` and point values are
+filled in when the file loads. Point values come from the round's ladder, so one
+packet plays at 100/200/300 in one round and 200/400/600 in the next without
+being edited. Optional per question: `accept` (other answers to allow) and
+`note` (host-only, not shown on the projector).
+
+The order of questions inside a category is the order of the tiles, top to
+bottom — put the easiest first.
+
+Drop `.json` or `.csv` files in `packets/`. Every one is loaded at startup and
+any round can play it by name:
+
+```ts
+{ id: 'r1', title: 'Round 1', bankId: 'general-knowledge', categoryIds: ['space', 'words'] }
+```
+
+The id comes from the title unless you set one (`General Knowledge` →
+`general-knowledge`), and category ids the same way.
+
+### Writing questions in a spreadsheet
+
+Most questions start life in a document, so a packet can also be a CSV — one
+question per row, exported from Excel, Numbers or Google Sheets:
+
+```csv
+category,prompt,answer,accept,note
+Animation,Which animated film features a rat who wants to be a chef?,Ratatouille,,
+Animation,What is the name of the toy cowboy in Toy Story?,Woody,Sheriff Woody,
+Space Opera,What is the name of Han Solo's ship?,The Millennium Falcon,Millennium Falcon,
+```
+
+`category`, `prompt` and `answer` are required; `accept`, `note`, `points` and
+`title` are optional. Header names are forgiving — `question` works as well as
+`prompt`, `topic` as well as `category`.
+
+Alternative answers go in one cell separated by `|`, because a comma would end
+the field. Rows group into categories in the order they first appear, and the
+row order inside a category is the tile order.
+
+The packet is named after the file (`film-and-tv.csv` → "Film And Tv") unless a
+`title` column says otherwise. `packets/film-and-tv.csv` is a working example.
+
+Anything a spreadsheet exports is handled: quoted fields with commas, quotes
+doubled inside them, line breaks inside a cell, and the byte order mark Excel
+writes at the top of the file.
+
+A packet is also enough to run a show on its own — no preset to copy:
+
+```bash
+npm run show packets/example-general-knowledge.json
+```
+
+That builds one grid round from the packet's own shape: one column per category,
+one row per question, 100/200/300 point ladder, three teams, host picks.
+
+To check a file before the day of the show:
+
+```bash
+npm run check-packet
+```
+
+It reports missing answers by row, duplicate ids, and categories with too few
+questions for the board they are being asked to fill. CSV problems are reported
+with the spreadsheet row number, so `row 14` means row 14 in the sheet. The same
+checks run at startup, and the show refuses to start on an error.
+
+### Loading questions without restarting
+
+In one-laptop mode the browser runs the engine, so questions can be swapped from
+the page itself. Press **Load questions…** in the host window, or drop a `.json`
+or `.csv` file anywhere on it.
+
+The show keeps its rules, theme and teams; only the board changes. That is the
+whole point of the split — a school can keep its own colours and class names and
+play a different set of questions each week.
+
+Packets you load are remembered in the browser, so the next show is one click
+from the dropdown. Choosing **Built-in show** goes back to the preset.
+
+Questions can only be swapped before the show starts. Once you press **Start
+round** the picker refuses, because changing the board mid-show would invalidate
+the tiles already played and everything undo knows about them.
+
 ## Running it on one laptop
 
 If the projector is on HDMI from the laptop, both surfaces are the same machine,
@@ -104,7 +207,9 @@ src/scoring/    scoring engines (flat)
 src/transport/  local HTTP server, SSE down, POST up
 src/stage/      projector view
 src/host/       host controller
+src/local/      one-laptop mode: engine in the host window, packet picker
 presets/        shows
+packets/        question packets (.json / .csv)
 ```
 
 ## Development
@@ -113,6 +218,7 @@ presets/        shows
 npm run typecheck
 npm test
 npm run build
+npm run check-packet
 node scripts/check-stage-host-isolation.mjs
 ```
 

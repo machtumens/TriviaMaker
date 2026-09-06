@@ -129,13 +129,30 @@
         font-weight: 700; cursor: pointer;
       }
       .launcher .hint { opacity: 0.65; font-size: 0.85rem; }
+      .launcher button.secondary {
+        background: transparent; color: var(--text); border-color: #2a3350; font-weight: 600;
+      }
+      .launcher button.secondary:hover { border-color: #f5c518; }
+      .launcher select {
+        font: inherit; padding: 0.3rem 0.5rem; border-radius: 6px;
+        background: var(--surface-raised); color: var(--text); border: 1px solid #2a3350;
+        max-width: 14rem;
+      }
+      .launcher select[hidden] { display: none; }
+      .launcher .hint.bad { opacity: 1; color: var(--wrong); }
     </style>
   </head>
   <body>
     <div class="launcher">
       <strong id="show-title">loading…</strong>
       <button id="open-projector" type="button">Open projector window</button>
-      <span class="hint">Drag that window to the projector, then press F11 for fullscreen.</span>
+      <button id="packet-choose" class="secondary" type="button">Load questions…</button>
+      <select id="packet-pick" aria-label="Question packet" hidden></select>
+      <input id="packet-file" type="file" accept=".json,.csv" hidden />
+      <span id="packet-status" class="hint">or drop a .json / .csv packet on this page</span>
+    </div>
+    <div class="launcher">
+      <span class="hint">Drag the projector window to the projector, then press F11 for fullscreen.</span>
     </div>
     <div id="root">Connecting…</div>
     <script type="module" src="../local/main.ts"></script>

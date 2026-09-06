@@ -1,4 +1,5 @@
-import { publish, showTitle, roundCount } from './host'
+import { publish, showLabel } from './host'
+import { mountPacketPicker } from './packets'
 
 const projector = document.getElementById('open-projector')
 if (projector) {
@@ -8,7 +9,9 @@ if (projector) {
 }
 
 const title = document.getElementById('show-title')
-if (title) title.textContent = `${showTitle} · ${roundCount} round(s)`
+if (title) title.textContent = showLabel()
+
+mountPacketPicker()
 
 await import('../host/main')
 

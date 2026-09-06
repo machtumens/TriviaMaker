@@ -1,0 +1,46 @@
+{
+  "packet": 1,
+  "id": "example-general-knowledge",
+  "title": "General Knowledge",
+  "author": "TriviaMaker",
+  "description": "A three-by-three starter board. Copy this file and replace the questions.",
+
+  "categories": [
+    {
+      "title": "Space",
+      "questions": [
+        { "prompt": "Which planet is known as the Red Planet?", "answer": "Mars" },
+        { "prompt": "What force keeps the planets in orbit around the Sun?", "answer": "Gravity" },
+        {
+          "prompt": "What is the name of the galaxy we live in?",
+          "answer": "The Milky Way",
+          "accept": ["Milky Way"]
+        }
+      ]
+    },
+    {
+      "title": "Words",
+      "questions": [
+        {
+          "prompt": "What do you call a word that means the opposite of another?",
+          "answer": "An antonym",
+          "accept": ["antonym"]
+        },
+        { "prompt": "How many letters are in the English alphabet?", "answer": 26 },
+        {
+          "prompt": "What word describes a term that imitates a sound?",
+          "answer": "Onomatopoeia",
+          "note": "Accept it read aloud; do not require the spelling."
+        }
+      ]
+    },
+    {
+      "title": "Music",
+      "questions": [
+        { "prompt": "How many strings does a standard guitar have?", "answer": "Six" },
+        { "prompt": "What instrument has 88 keys?", "answer": "The piano", "accept": ["piano"] },
+        { "prompt": "What Italian word means \"gradually getting louder\"?", "answer": "Crescendo" }
+      ]
+    }
+  ]
+}
