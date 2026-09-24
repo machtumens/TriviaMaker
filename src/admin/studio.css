@@ -1,0 +1,208 @@
+/* Studio layout. Tokens and every control come from ui/controls.css — this file
+   is only the page: the bar, the two columns, the editor cards. */
+
+body.studio-page { padding: 0; }
+
+.studio-bar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.studio-bar .brand { font-weight: 800; letter-spacing: -0.02em; font-size: 1.05rem; }
+.studio-bar .brand span { color: var(--muted); font-weight: 600; }
+.studio-bar .spacer { flex: 1 1 auto; }
+.studio-bar button { min-height: 40px; }
+.studio-bar .saved { font-size: 0.78rem; color: var(--muted); }
+
+.studio {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 18px;
+  align-items: start;
+  padding: 18px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+@media (max-width: 980px) {
+  .studio { grid-template-columns: minmax(0, 1fr); }
+  .studio .side { position: static; }
+}
+
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.tabs button {
+  min-height: 40px; padding: 8px 16px; border-radius: 999px;
+  background: transparent; border-color: transparent; box-shadow: none; color: var(--muted);
+}
+.tabs button:hover:not(:disabled) { background: var(--surface); box-shadow: var(--shadow); }
+.tabs button[aria-current="true"] {
+  background: var(--surface); color: var(--text); border-color: var(--line-strong);
+  box-shadow: var(--shadow);
+}
+
+.panel { display: grid; gap: 14px; }
+
+.block {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 14px; padding: 16px; box-shadow: var(--shadow);
+}
+.block > h3 {
+  margin: 0 0 4px; font-size: 0.95rem; letter-spacing: -0.01em;
+}
+.block > .help { margin: 0 0 14px; font-size: 0.84rem; color: var(--muted); }
+.block + .block { margin-top: 0; }
+
+.fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.field { display: grid; gap: 5px; min-width: 0; }
+.field > span {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); font-weight: 700;
+}
+.field .note { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 0.78rem; }
+
+input[type="text"], input[type="number"], textarea, select {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 9px;
+  padding: 9px 11px; min-height: 42px; width: 100%; min-width: 0;
+}
+textarea { min-height: 62px; resize: vertical; line-height: 1.4; }
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid var(--accent-wash); outline-offset: 0; border-color: var(--accent);
+}
+input[type="color"] {
+  width: 100%; height: 42px; padding: 3px; background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 9px; cursor: pointer;
+}
+.check { display: flex; align-items: center; gap: 9px; font-size: 0.9rem; }
+.check input { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); }
+
+.seg { display: flex; gap: 0; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; }
+.seg button {
+  flex: 1; border: 0; border-radius: 0; box-shadow: none; background: var(--surface);
+  color: var(--muted); min-height: 46px;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent-wash); color: var(--accent); }
+
+/* One question, one card: the unit the host thinks in. */
+.item {
+  border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  background: var(--surface-sunken); display: grid; gap: 10px;
+}
+.item + .item { margin-top: 10px; }
+.item-head { display: flex; align-items: center; gap: 10px; }
+.item-head .index {
+  font-size: 0.72rem; font-weight: 800; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+}
+.item-head .spacer { flex: 1; }
+button.ghost {
+  min-height: 34px; padding: 5px 10px; font-size: 0.82rem; font-weight: 600;
+  background: transparent; border-color: var(--line); box-shadow: none; color: var(--muted);
+}
+button.ghost:hover:not(:disabled) { color: var(--wrong); border-color: var(--wrong); background: var(--wrong-wash); }
+button.ghost.add:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+
+.answer-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 34px; gap: 8px; align-items: center; }
+.answer-row button.ghost { min-height: 34px; padding: 0; text-align: center; }
+.row-label {
+  font-size: 0.7rem; color: var(--muted); font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.team-card {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) 34px; gap: 8px; align-items: center;
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--surface-sunken);
+}
+
+.palettes { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch {
+  display: grid; gap: 6px; justify-items: center; padding: 8px 10px; min-height: 0;
+  border-radius: 10px;
+}
+.swatch .chips { display: flex; }
+.swatch .chips i { width: 16px; height: 16px; border-radius: 4px; display: block; }
+.swatch .chips i + i { margin-left: -4px; border: 1px solid rgba(255, 255, 255, 0.55); }
+.swatch span { font-size: 0.78rem; font-weight: 600; }
+
+/* Right column: what the projector will look like, and whether it will run. */
+.side { display: grid; gap: 14px; position: sticky; top: 74px; }
+
+.preview {
+  border-radius: 14px; overflow: hidden; border: 1px solid var(--line);
+  box-shadow: var(--shadow); background: var(--surface);
+}
+.preview .screen {
+  aspect-ratio: 16 / 9; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  font-family: var(--pv-display); overflow: hidden;
+}
+.preview .slots, .preview .pv-grid { min-height: 0; overflow: hidden; }
+.preview .teams { margin-top: auto; }
+.preview .corners {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.preview .pv-question {
+  font-size: 1.02rem; line-height: 1.15; text-wrap: balance;
+}
+.preview .slots { display: grid; gap: 5px; }
+.preview .slot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 5px 9px; border-radius: 6px; font-size: 0.72rem; font-weight: 700;
+}
+.preview .pv-grid { display: grid; gap: 5px; }
+/* The flex column may squeeze the board; the headers must not be the row that
+   loses, so they carry their own height and the tiles absorb the clipping. */
+.preview .pv-head {
+  font-size: 0.55rem; letter-spacing: 0.06em; text-align: center; font-weight: 700;
+  min-height: 12px; line-height: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.preview .pv-tile {
+  display: grid; place-items: center; padding: 4px 2px; border-radius: 5px;
+  font-size: 0.74rem; font-weight: 800;
+}
+.preview .teams { display: flex; gap: 4px; flex-wrap: wrap; flex: 0 0 auto; }
+.preview .teams i { width: 100%; max-width: 22px; height: 5px; border-radius: 999px; display: block; }
+.preview .caption {
+  padding: 8px 12px; font-size: 0.76rem; color: var(--muted);
+  border-top: 1px solid var(--line); background: var(--surface);
+}
+
+.checks { display: grid; gap: 8px; }
+.check-line {
+  display: flex; gap: 9px; align-items: flex-start; font-size: 0.84rem;
+  padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface);
+}
+.check-line b { font-weight: 700; }
+.check-line.ok { border-color: #a8dcc0; background: var(--correct-wash); color: var(--correct); }
+.check-line.warn { border-color: #e8d091; background: #fdf6e3; color: #7a5b06; }
+.check-line.error { border-color: #f0b4b4; background: var(--wrong-wash); color: var(--wrong); }
+
+/* Progression shapes: a wide swatch that explains itself. */
+.swatch.wide {
+  justify-items: start; text-align: left; gap: 2px; padding: 10px 12px;
+  flex: 1 1 240px; min-height: 0;
+}
+.swatch-name { font-weight: 700; font-size: 0.88rem; }
+.swatch-help { font-size: 0.78rem; color: var(--muted); font-weight: 400; line-height: 1.35; }
+
+/* What the field looks like walking down the programme. */
+.projection {
+  margin-top: 12px; display: grid; gap: 4px;
+  border-left: 3px solid var(--line-strong); padding-left: 12px;
+}
+.projection-line { font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Which round the questions editor is pointed at. */
+.tabs.round-picker { margin: 0 0 4px; }
+
+.team-card .dot { width: 22px; height: 22px; border-radius: 6px; }
+.team-card .team-name {
+  font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

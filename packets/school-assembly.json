@@ -1,0 +1,154 @@
+{
+  "packet": 1,
+  "id": "school-assembly",
+  "title": "School Assembly",
+  "description": "Five categories by four rows — a longer board for a full assembly slot.",
+  "categories": [
+    {
+      "id": "world",
+      "title": "Around the World",
+      "questions": [
+        {
+          "prompt": "Which country is home to the kangaroo?",
+          "answer": "Australia"
+        },
+        {
+          "prompt": "Which is the largest ocean on Earth?",
+          "answer": "The Pacific",
+          "accept": [
+            "Pacific",
+            "Pacific Ocean"
+          ]
+        },
+        {
+          "prompt": "Which continent is the Sahara Desert on?",
+          "answer": "Africa"
+        },
+        {
+          "prompt": "Which is the largest country in the world by area?",
+          "answer": "Russia"
+        }
+      ]
+    },
+    {
+      "id": "science",
+      "title": "Science",
+      "questions": [
+        {
+          "prompt": "What do bees make?",
+          "answer": "Honey"
+        },
+        {
+          "prompt": "How many legs does an insect have?",
+          "answer": "Six",
+          "accept": [
+            "6"
+          ]
+        },
+        {
+          "prompt": "What is the process by which plants make their own food?",
+          "answer": "Photosynthesis"
+        },
+        {
+          "prompt": "What is the hardest natural substance on Earth?",
+          "answer": "Diamond"
+        }
+      ]
+    },
+    {
+      "id": "words",
+      "title": "Words and Numbers",
+      "questions": [
+        {
+          "prompt": "How many minutes are in an hour?",
+          "answer": 60
+        },
+        {
+          "prompt": "What is half of 150?",
+          "answer": 75
+        },
+        {
+          "prompt": "What do you call a word that reads the same backwards?",
+          "answer": "A palindrome",
+          "accept": [
+            "palindrome"
+          ]
+        },
+        {
+          "prompt": "Rearrange the letters of LISTEN to make another common word.",
+          "answer": "SILENT",
+          "accept": [
+            "silent",
+            "enlist",
+            "tinsel",
+            "inlets"
+          ],
+          "note": "Several real words work. Accept any of them."
+        }
+      ]
+    },
+    {
+      "id": "music",
+      "title": "Music",
+      "questions": [
+        {
+          "prompt": "How many strings does a standard violin have?",
+          "answer": "Four",
+          "accept": [
+            "4"
+          ]
+        },
+        {
+          "prompt": "What does a conductor hold to keep time?",
+          "answer": "A baton",
+          "accept": [
+            "baton"
+          ]
+        },
+        {
+          "prompt": "How many keys does a standard piano have?",
+          "answer": 88
+        },
+        {
+          "prompt": "Which Italian word means \"gradually getting louder\"?",
+          "answer": "Crescendo"
+        }
+      ]
+    },
+    {
+      "id": "sport",
+      "title": "Sport",
+      "questions": [
+        {
+          "prompt": "How many players from one team are on the pitch in football?",
+          "answer": "Eleven",
+          "accept": [
+            "11"
+          ],
+          "note": "Association football. If you mean a different code, change the question."
+        },
+        {
+          "prompt": "In which sport would you use a shuttlecock?",
+          "answer": "Badminton"
+        },
+        {
+          "prompt": "How many rings are on the Olympic flag?",
+          "answer": "Five",
+          "accept": [
+            "5"
+          ]
+        },
+        {
+          "prompt": "How often are the Summer Olympic Games usually held?",
+          "answer": "Every four years",
+          "accept": [
+            "four years",
+            "4 years",
+            "every 4 years"
+          ],
+          "note": "\"Usually\" covers the 2020 Games, held in 2021."
+        }
+      ]
+    }
+  ]
+}

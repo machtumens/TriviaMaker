@@ -1,0 +1,44 @@
+{
+  "packet": 1,
+  "id": "general-knowledge",
+  "title": "General Knowledge",
+  "description": "A three-by-three starter board. Copy this file and replace the questions.",
+  "categories": [
+    {
+      "title": "Space",
+      "questions": [
+        { "prompt": "Which planet is known as the Red Planet?", "answer": "Mars" },
+        { "prompt": "What force keeps the planets in orbit around the Sun?", "answer": "Gravity" },
+        {
+          "prompt": "What is the name of the galaxy we live in?",
+          "answer": "The Milky Way",
+          "accept": ["Milky Way"]
+        }
+      ]
+    },
+    {
+      "title": "Words",
+      "questions": [
+        { "prompt": "How many letters are in the English alphabet?", "answer": 26 },
+        {
+          "prompt": "What do you call a word that means the opposite of another?",
+          "answer": "An antonym",
+          "accept": ["antonym"]
+        },
+        {
+          "prompt": "What word describes a term that imitates a sound, like \"buzz\"?",
+          "answer": "Onomatopoeia",
+          "note": "Accept it said aloud. Do not ask anyone to spell it."
+        }
+      ]
+    },
+    {
+      "title": "Numbers",
+      "questions": [
+        { "prompt": "What is 12 multiplied by 12?", "answer": 144 },
+        { "prompt": "How many sides does a hexagon have?", "answer": "Six", "accept": ["6"] },
+        { "prompt": "What is pi to two decimal places?", "answer": "3.14" }
+      ]
+    }
+  ]
+}

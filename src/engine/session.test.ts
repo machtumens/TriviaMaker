@@ -1,0 +1,608 @@
+import assert from 'node:assert/strict'
+import '../registry/bootstrap'
+import {
+  advanceToNextRound, createSession, currentRound, dispatchHostAction, resolveAnswer,
+  resolveRoundContent, styleKeyFor,
+} from './session'
+import { undo } from './log'
+import { resolveConfig } from '../config/resolve'
+import type { Intent, SessionState, TeamState } from '../registry/index'
+import type { Category, GameShowConfig, ProgramConfig, Round, StyleConfig } from '../config/types'
+
+const GRID: StyleConfig = {
+  kind: 'grid', columns: 2, rows: 2, pointLadder: [100, 200],
+  showCategoryHeaders: true,
+  
+}
+
+function categories(): Category[] {
+  return [
+    {
+      id: 'cat-a', title: 'A',
+      questions: [
+        { id: 'a-100', kind: 'text', prompt: 'A100?', answer: 'a100', points: 100 },
+        { id: 'a-200', kind: 'text', prompt: 'A200?', answer: 'a200', points: 200 },
+      ],
+    },
+    {
+      id: 'cat-b', title: 'B',
+      questions: [
+        { id: 'b-100', kind: 'text', prompt: 'B100?', answer: 'b100', points: 100 },
+        { id: 'b-200', kind: 'text', prompt: 'B200?', answer: 'b200', points: 200 },
+      ],
+    },
+  ]
+}
+
+function makeConfig(round: Partial<Round> = {}): GameShowConfig {
+  const base = resolveConfig({ meta: { id: 'session', title: 'Session' } })
+  const fullRound: Round = { id: 'r1', title: 'Round 1', bankId: 'bank', style: GRID, ...round }
+  return {
+    ...base,
+    program: { ...base.program, rounds: [fullRound] },
+    content: { banks: [{ id: 'bank', title: 'Bank', categories: categories() }] },
+    teams: {
+      ...base.teams,
+      teams: [
+        { id: 'a', name: 'Team A', color: '#f00' },
+        { id: 'b', name: 'Team B', color: '#00f', startingScore: 250 },
+      ],
+    },
+  }
+}
+
+function makeRounds(overrides: Array<Partial<Round>>): Round[] {
+  return overrides.map((override, index) => ({
+    id: `r${index + 1}`,
+    title: `Round ${index + 1}`,
+    bankId: 'bank',
+    style: GRID,
+    ...override,
+  }))
+}
+
+function makeMultiRoundConfig(
+  rounds: Round[],
+  program: Partial<ProgramConfig> = {},
+): GameShowConfig {
+  const base = resolveConfig({ meta: { id: 'session-multi', title: 'Session Multi' } })
+  return {
+    ...base,
+    program: { ...base.program, ...program, rounds },
+    content: { banks: [{ id: 'bank', title: 'Bank', categories: categories() }] },
+  }
+}
+
+function team(id: string, score: number, eliminated = false): TeamState {
+  return {
+    id, name: id.toUpperCase(), color: '#fff',
+    score, eliminated,
+  }
+}
+
+function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0): SessionState {
+  return { ...createSession(config), phase: 'reveal', roundIndex, teams }
+}
+
+{
+  const config = makeConfig()
+  const session = createSession(config)
+
+  const sourceQuestion = config.content.banks[0]?.categories[0]?.questions[0]
+  assert.ok(sourceQuestion, 'fixture question exists')
+  sourceQuestion.prompt = 'EDITED AFTER LAUNCH'
+  sourceQuestion.answer = 'EDITED ANSWER'
+  const sourceRound = config.program.rounds[0]
+  assert.ok(sourceRound, 'fixture round exists')
+  sourceRound.title = 'EDITED TITLE'
+  config.content.banks.push({ id: 'late', title: 'Late', categories: [] })
+
+  const snapshot = session.config.content.banks[0]?.categories[0]?.questions[0]
+  assert.equal(snapshot?.prompt, 'A100?', 'the session keeps the launch-time prompt')
+  assert.equal(snapshot?.answer, 'a100', 'and the launch-time answer')
+  assert.equal(session.config.program.rounds[0]?.title, 'Round 1', 'and the launch-time round title')
+  assert.equal(session.config.content.banks.length, 1, 'a bank added after launch does not appear')
+  assert.notEqual(session.config, config, 'the session config is a distinct object')
+}
+
+{
+  const session = createSession(makeConfig())
+  assert.equal(session.phase, 'lobby', 'a session starts in the lobby')
+  assert.equal(session.roundIndex, 0, 'on the first round')
+  assert.equal(session.currentQuestionId, null, 'with nothing selected')
+  assert.equal(session.consumed.size, 0, 'and nothing consumed')
+  assert.deepEqual(session.styleState, {}, 'and an empty style-state bag')
+  assert.deepEqual(session.log, [], 'and an empty log')
+  assert.equal(session.teams.length, 2, 'pre-authored teams are seeded')
+  assert.equal(session.teams[0]?.score, 0, 'default starting score is 0')
+  assert.equal(session.teams[1]?.score, 250, 'an authored handicap is honoured')
+  assert.ok(session.id.length > 0, 'the session has an id')
+}
+{
+  const session = createSession(makeConfig(), { id: 'fixed-id' })
+  assert.equal(session.id, 'fixed-id', 'an explicit id is used verbatim')
+}
+
+{
+  const config = makeConfig()
+  const round = currentRound(config, 0)
+  assert.equal(styleKeyFor(round), 'grid', 'a built-in kind is its own registry key')
+
+  const all = resolveRoundContent(config, round)
+  assert.equal(all.length, 2, 'no categoryIds means the whole bank, in bank order')
+  assert.equal(all[0]?.id, 'cat-a', 'bank order preserved')
+}
+{
+  const config = makeConfig({ categoryIds: ['cat-b', 'cat-a'] })
+  const resolved = resolveRoundContent(config, currentRound(config, 0))
+  assert.deepEqual(
+    resolved.map(c => c.id), ['cat-b', 'cat-a'],
+    "the author's explicit ordering wins over bank order",
+  )
+}
+
+{
+  const config = makeConfig()
+  const round: Round = { id: 'r-nobank', title: 'No bank', style: GRID }
+  assert.throws(
+    () => resolveRoundContent(config, round),
+    /round "r-nobank": no bankId set/,
+    'a round with no bankId fails by name',
+  )
+}
+{
+  const config = makeConfig({ bankId: 'missing-bank' })
+  assert.throws(
+    () => resolveRoundContent(config, currentRound(config, 0)),
+    /bankId "missing-bank" not found in content\.banks\. Known banks: bank/,
+    'an unknown bank lists the known ones',
+  )
+}
+{
+  const config = makeConfig({ categoryIds: ['cat-a', 'nope'] })
+  assert.throws(
+    () => resolveRoundContent(config, currentRound(config, 0)),
+    /unknown category "nope" in bank "bank"\. Known categories: cat-a, cat-b/,
+    'an unknown category fails on the first bad id rather than dropping it',
+  )
+}
+{
+  const config = makeConfig({ categoryIds: [] })
+  assert.throws(
+    () => resolveRoundContent(config, currentRound(config, 0)),
+    /categoryIds is an empty array/,
+    'a present-but-empty categoryIds is an error, not a zero-column board',
+  )
+}
+{
+  const base = makeConfig()
+  const config: GameShowConfig = {
+    ...base,
+    content: { banks: [{ id: 'bank', title: 'Bank', categories: [] }] },
+  }
+  assert.throws(
+    () => resolveRoundContent(config, currentRound(config, 0)),
+    /bank "bank" has zero categories/,
+    'a bank with no categories is an error, not a zero-column board',
+  )
+}
+
+{
+  const config = makeConfig()
+  assert.throws(
+    () => currentRound(config, 5),
+    /no round at index 5; program\.rounds has 1/,
+    'an out-of-range round index names the range',
+  )
+}
+
+{
+  const state = createSession(makeConfig())
+  const intents: Intent[] = [{ type: 'setPhase', phase: 'board' }]
+  const result = dispatchHostAction(state, intents, 1, 1000)
+  assert.equal(result.state.log.length, 1, 'one event was appended')
+  assert.equal(result.event.seq, 1, 'the caller-supplied seq is used')
+  assert.equal(result.state.phase, 'board', 'the intent was applied')
+
+  const reverted = undo(result.state, result.state.config.runtime.undoDepth)
+  assert.equal(reverted.undone, true, 'the action is undoable through the same path')
+  assert.equal(reverted.state.phase, 'lobby', 'and lands back in the lobby')
+}
+
+{
+  let state = createSession(makeConfig())
+  state = dispatchHostAction(state, [{ type: 'setPhase', phase: 'board' }], 1, 1000).state
+  state = dispatchHostAction(state, [
+    { type: 'selectQuestion', questionId: 'a-200' },
+    { type: 'setPhase', phase: 'reading' },
+  ], 2, 2000).state
+  state = dispatchHostAction(state, [{ type: 'setPhase', phase: 'armed' }], 3, 3000).state
+
+  const intents = resolveAnswer(state, { teamId: 'a', correct: true })
+  assert.deepEqual(
+    intents,
+    [
+      { type: 'awardPoints', teamId: 'a', delta: 200, reason: 'correct answer' },
+      { type: 'consumeQuestion', questionId: 'a-200' },
+      { type: 'setPhase', phase: 'reveal' },
+    ],
+    'award, consume, then a TRAILING setPhase — grid contributes no extra intents',
+  )
+
+  const applied = dispatchHostAction(state, intents, 4, 4000)
+  assert.equal(applied.state.log.length, 4, 'the whole adjudication is ONE more event')
+  assert.equal(applied.state.teams[0]?.score, 200, 'the team was awarded')
+
+  const reverted = undo(applied.state, applied.state.config.runtime.undoDepth)
+  assert.equal(reverted.state.teams[0]?.score, 0, 'one undo reverses the award')
+  assert.equal(reverted.state.consumed.has('a-200'), false, 'and the consumption')
+  assert.equal(reverted.state.phase, 'armed', 'and the phase')
+}
+{
+  let state = createSession(makeConfig())
+  state = dispatchHostAction(state, [{ type: 'setPhase', phase: 'board' }], 1, 1000).state
+  assert.throws(
+    () => resolveAnswer(state, { teamId: 'a', correct: true }),
+    /no question is selected/,
+    'adjudicating with nothing selected fails by name',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{}, {}]))
+  const state = revealState(config, [team('a', 10), team('b', 20)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [{ type: 'advanceRound' }, { type: 'setPhase', phase: 'board' }],
+    'a plain round boundary is exactly one advance and one setPhase',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    { intermissionAfter: { enabled: true, text: 'Back in 5' } },
+    { intro: { enabled: true, durationMs: 1, text: 'Round 2' } },
+  ]))
+  const state = revealState(config, [team('a', 10)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [{ type: 'advanceRound' }, { type: 'setPhase', phase: 'intermission' }],
+    "the finished round's intermission is entered first, even though the next round has an intro",
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    {},
+    { intro: { enabled: true, durationMs: 1, text: 'Round 2' } },
+  ]))
+  const state = revealState(config, [team('a', 10)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [{ type: 'advanceRound' }, { type: 'setPhase', phase: 'roundIntro' }],
+    'reveal -> roundIntro is the no-intermission boundary (needs the T2.2-L7 edge)',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    {},
+    { intro: { enabled: false, durationMs: 1, text: 'Round 2' } },
+  ]))
+  const state = revealState(config, [team('a', 10)])
+  assert.deepEqual(
+    advanceToNextRound(state).at(-1), { type: 'setPhase', phase: 'board' },
+    'intro.enabled false lands on the board, not a title card',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{}, {}]), { carryScores: false })
+  const state = revealState(config, [team('a', 300), team('b', 0), team('c', -50)])
+  const intents = advanceToNextRound(state)
+  assert.deepEqual(
+    intents,
+    [
+      { type: 'awardPoints', teamId: 'a', delta: -300, reason: 'round boundary: scores reset (program.carryScores is false)' },
+      { type: 'awardPoints', teamId: 'c', delta: 50, reason: 'round boundary: scores reset (program.carryScores is false)' },
+      { type: 'advanceRound' },
+      { type: 'setPhase', phase: 'board' },
+    ],
+    'the reset rides in the SAME batch as the advance, so one undo restores both',
+  )
+  assert.equal(
+    intents.filter(i => i.type === 'awardPoints' && i.teamId === 'b').length, 0,
+    'a team already on 0 gets no no-op awardPoints intent',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{}, {}]), { carryScores: true })
+  const state = revealState(config, [team('a', 300)])
+  assert.equal(
+    advanceToNextRound(state).some(i => i.type === 'awardPoints'), false,
+    'carryScores true resets nothing',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', 5), team('c', 20)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [
+      { type: 'eliminate', teamId: 'b' },
+      { type: 'advanceRound' },
+      { type: 'setPhase', phase: 'board' },
+    ],
+    'the elimination is the FIRST element of the same batch as the advance (T2.2-L2)',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', -999, true), team('c', 20)])
+  assert.deepEqual(
+    advanceToNextRound(state)[0], { type: 'eliminate', teamId: 'c' },
+    'the lowest LIVE team goes, not the lowest score overall',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', 5), team('c', 5)])
+  assert.throws(
+    () => advanceToNextRound(state),
+    /eliminateLowest tie between 2 teams — B \(b\), C \(c\)\. Resend "advanceRound" with eliminateTeamId/,
+    'a tie throws, naming every tied team and how to resolve it',
+  )
+  assert.deepEqual(
+    advanceToNextRound(state, { eliminateTeamId: 'c' })[0], { type: 'eliminate', teamId: 'c' },
+    "the host's choice among the tied teams is honoured",
+  )
+  assert.throws(
+    () => advanceToNextRound(state, { eliminateTeamId: 'a' }),
+    /eliminateLowest tie between 2 teams/,
+    'an id OUTSIDE the tied set is rejected exactly like no id at all — never silently obeyed',
+  )
+  assert.throws(
+    () => advanceToNextRound(state, { eliminateTeamId: 'nobody' }),
+    /eliminateLowest tie between 2 teams/,
+    'an unknown id is rejected too',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{ advanceTop: 2 }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', 5), team('c', 20), team('d', 1)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [
+      { type: 'eliminate', teamId: 'b' },
+      { type: 'eliminate', teamId: 'd' },
+      { type: 'advanceRound' },
+      { type: 'setPhase', phase: 'board' },
+    ],
+    'advanceTop cuts the field to the top N, lowest first, in one batch',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{ advanceTop: 2 }, {}]))
+  const tied = revealState(config, [team('a', 30), team('b', 20), team('c', 20), team('d', 1)])
+  assert.deepEqual(
+    advanceToNextRound(tied).filter(i => i.type === 'eliminate'),
+    [{ type: 'eliminate', teamId: 'd' }],
+    'a tie ON the cut line advances every tied team rather than the engine picking one',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{ advanceTop: 4 }, {}]))
+  const small = revealState(config, [team('a', 30), team('b', 5)])
+  assert.equal(
+    advanceToNextRound(small).some(i => i.type === 'eliminate'), false,
+    'a field already smaller than the cut loses nobody',
+  )
+}
+{
+  // A heat: only the named groups play, and only they can go out.
+  const config = makeMultiRoundConfig(makeRounds([{ teamIds: ['a', 'b'], advanceTop: 1 }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', 5), team('c', 0), team('d', 0)])
+  assert.deepEqual(
+    advanceToNextRound(state).filter(i => i.type === 'eliminate'),
+    [{ type: 'eliminate', teamId: 'b' }],
+    'a heat eliminates inside its own roster — the groups yet to play are untouched',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{ teamIds: ['a', 'b'], eliminateLowest: true }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', 5), team('c', -100), team('d', 0)])
+  assert.deepEqual(
+    advanceToNextRound(state)[0], { type: 'eliminate', teamId: 'b' },
+    'the lowest score OUTSIDE the roster is not the one that goes',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{ teamIds: ['a', 'b'], advanceTop: 1 }, {}]))
+  const gone = revealState(config, [team('a', 30), team('b', 5, true), team('c', 0)])
+  assert.equal(
+    advanceToNextRound(gone).some(i => i.type === 'eliminate'), false,
+    'a roster down to one live team loses nobody',
+  )
+}
+
+{
+  // The host names the winner of a heat; the score rule steps aside.
+  const config = makeMultiRoundConfig(makeRounds([{ teamIds: ['a', 'b', 'c'], advanceTop: 1 }, {}]))
+  const state = revealState(config, [team('a', 30), team('b', 20), team('c', 10), team('d', 0)])
+
+  assert.deepEqual(
+    advanceToNextRound(state, { advanceTeamIds: ['b'] }).filter(i => i.type === 'eliminate'),
+    [{ type: 'eliminate', teamId: 'a' }, { type: 'eliminate', teamId: 'c' }],
+    'the named team goes through even when it did not top the round',
+  )
+  assert.deepEqual(
+    advanceToNextRound(state).filter(i => i.type === 'eliminate'),
+    [{ type: 'eliminate', teamId: 'b' }, { type: 'eliminate', teamId: 'c' }],
+    'naming nobody leaves the score rule in charge',
+  )
+  assert.deepEqual(
+    advanceToNextRound(state, { advanceTeamIds: ['a', 'b'] }).filter(i => i.type === 'eliminate'),
+    [{ type: 'eliminate', teamId: 'c' }],
+    'two can be sent through when the host says so — a tie settled in the room',
+  )
+  assert.throws(
+    () => advanceToNextRound(state, { advanceTeamIds: ['d'] }),
+    /cannot send d through — not playing this round/,
+    'a team outside the round cannot be sent through',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true, advanceTop: 2 }, {}]))
+  const both = revealState(config, [team('a', 30), team('b', 5), team('c', 20), team('d', 10)])
+  assert.deepEqual(
+    advanceToNextRound(both).filter(i => i.type === 'eliminate'),
+    [{ type: 'eliminate', teamId: 'b' }, { type: 'eliminate', teamId: 'd' }],
+    'the lowest goes first, then the cut runs on who is left — nobody is eliminated twice',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{ eliminateLowest: true }, {}]))
+  const oneLeft = revealState(config, [team('a', 30), team('b', 5, true)])
+  assert.deepEqual(
+    advanceToNextRound(oneLeft),
+    [{ type: 'advanceRound' }, { type: 'setPhase', phase: 'board' }],
+    'with one team left there is nobody to eliminate',
+  )
+  const noneLeft = revealState(config, [team('a', 30, true), team('b', 5, true)])
+  assert.deepEqual(
+    advanceToNextRound(noneLeft),
+    [{ type: 'advanceRound' }, { type: 'setPhase', phase: 'board' }],
+    'with zero teams left it still does not throw or emit Math.min(...[]) nonsense',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    {},
+    { minTeams: 4 },
+    { minTeams: 2 },
+  ]))
+  const state = revealState(config, [team('a', 10), team('b', 20)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [
+      { type: 'advanceRound' },
+      { type: 'advanceRound' },
+      { type: 'setPhase', phase: 'board' },
+    ],
+    'a skipped round is one extra advanceRound in the SAME batch, not a second host action',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    { eliminateLowest: true },
+    { minTeams: 3 },
+    { minTeams: 2 },
+  ]))
+  const state = revealState(config, [team('a', 10), team('b', 20), team('c', 30)])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [
+      { type: 'eliminate', teamId: 'a' },
+      { type: 'advanceRound' },
+      { type: 'advanceRound' },
+      { type: 'setPhase', phase: 'board' },
+    ],
+    'round 2 needs 3 teams and only 2 survive this batch, so it is skipped',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{}, { minTeams: 0 }, {}]))
+  const state = revealState(config, [])
+  assert.deepEqual(
+    advanceToNextRound(state),
+    [{ type: 'advanceRound' }, { type: 'setPhase', phase: 'board' }],
+    'minTeams 0 means always playable',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    { eliminateLowest: true },
+    { minTeams: 5 },
+    { minTeams: 5 },
+  ]), { carryScores: false })
+  const state = revealState(config, [team('a', 10), team('b', 20)])
+  const intents = advanceToNextRound(state)
+  assert.deepEqual(
+    intents,
+    [
+      { type: 'eliminate', teamId: 'a' },
+      { type: 'awardPoints', teamId: 'a', delta: -10, reason: 'round boundary: scores reset (program.carryScores is false)' },
+      { type: 'awardPoints', teamId: 'b', delta: -20, reason: 'round boundary: scores reset (program.carryScores is false)' },
+      { type: 'setPhase', phase: 'final' },
+    ],
+    'a full cascade ends the show; the elimination and reset computed earlier still ride along',
+  )
+  assert.equal(
+    intents.filter(i => i.type === 'advanceRound').length, 0,
+    'ZERO advanceRound intents — roundIndex must stay valid, broadcastState reads it in every phase including final',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{}, {}]))
+  const state = revealState(config, [team('a', 10)], 1)
+  assert.throws(
+    () => advanceToNextRound(state),
+    /round "r2" is the last round; call "endRound"/,
+    'the last round names itself and points at the right command, instead of crashing the next broadcast',
+  )
+}
+{
+  const config = makeMultiRoundConfig(makeRounds([{}]))
+  const state = revealState(config, [team('a', 10)])
+  assert.throws(
+    () => advanceToNextRound(state),
+    /round "r1" is the last round/,
+    'a one-round show can never advance at all',
+  )
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([{}, {}]))
+  for (const phase of ['board', 'lobby', 'armed', 'final'] as const) {
+    const state: SessionState = { ...revealState(config, [team('a', 10)]), phase }
+    assert.throws(
+      () => advanceToNextRound(state),
+      new RegExp(`phase must be "reveal", got "${phase}"`),
+      `advancing from "${phase}" is refused`,
+    )
+  }
+}
+
+{
+  const config = makeMultiRoundConfig(makeRounds([
+    { eliminateLowest: true },
+    { intro: { enabled: true, durationMs: 1, text: 'Round 2' } },
+  ]), { carryScores: false })
+  const before = revealState(config, [team('a', 10), team('b', 20)])
+  const applied = dispatchHostAction(before, advanceToNextRound(before), 1, 1000)
+
+  assert.equal(applied.state.log.length, 1, 'the whole round boundary is ONE event')
+  assert.equal(applied.state.roundIndex, 1, 'the round advanced')
+  assert.equal(applied.state.phase, 'roundIntro', 'and landed on the entered round\'s intro')
+  assert.equal(applied.state.teams[0]?.eliminated, true, 'the lowest team was eliminated')
+  assert.equal(applied.state.teams[0]?.score, 0, 'and scores were reset')
+  assert.equal(applied.state.teams[1]?.score, 0, 'for every team')
+
+  const reverted = undo(applied.state, applied.state.config.runtime.undoDepth)
+  assert.equal(reverted.undone, true, 'one press takes the whole boundary back')
+  assert.equal(reverted.state.roundIndex, 0, 'roundIndex rewound')
+  assert.equal(reverted.state.phase, 'reveal', 'phase rewound')
+  assert.equal(reverted.state.teams[0]?.eliminated, false, 'the elimination rewound')
+  assert.equal(reverted.state.teams[0]?.score, 10, 'and both scores')
+  assert.equal(reverted.state.teams[1]?.score, 20, 'by the SAME single undo')
+  assert.equal(reverted.state.log.length, 2, 'log is 2 (action + reversal), never 3')
+}
+
+console.log('✓ session: all checks passed')

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TriviaMaker — guide</title>
+    <style>
+      /* A document, not a show. One column, generous line length, tables that
+         survive a phone. Same palette as the host controls (ui/controls.css) so
+         the two read as one product. */
+      :root {
+        --bg: #f1f2f4;
+        --surface: #ffffff;
+        --line: #dcdfe4;
+        --text: #171a1f;
+        --muted: #676e7a;
+        --accent: #2f5fe0;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.65 system-ui, -apple-system, 'Segoe UI', sans-serif;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem 1.25rem;
+        align-items: baseline;
+        padding: 0.7rem 1.25rem;
+        background: rgba(241, 242, 244, 0.94);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--line);
+      }
+      .topbar strong { letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.85rem; }
+      .topbar a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+      .topbar a:hover { text-decoration: underline; }
+      .topbar .spacer { margin-left: auto; }
+
+      main {
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 6rem;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 1.2rem + 3vw, 3rem);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+        margin: 0 0 1.5rem;
+      }
+      h2 {
+        font-size: 1.4rem;
+        letter-spacing: -0.01em;
+        margin: 3rem 0 0.75rem;
+        padding-top: 1.25rem;
+        border-top: 1px solid var(--line);
+      }
+      p, li { color: #3a414c; }
+      strong { color: var(--text); }
+      a { color: var(--accent); }
+
+      ol, ul { padding-left: 1.25rem; }
+      li { margin: 0.35rem 0; }
+
+      code {
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 0.88em;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 0.1em 0.35em;
+      }
+      pre {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0.9rem 1rem;
+        overflow-x: auto;
+      }
+      pre code { background: none; border: 0; padding: 0; font-size: 0.85rem; }
+
+      .table-wrap { overflow-x: auto; }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.93rem;
+        margin: 1rem 0;
+      }
+      th, td {
+        text-align: left;
+        vertical-align: top;
+        padding: 0.55rem 0.75rem;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      tbody tr:hover { background: var(--surface); }
+
+      blockquote {
+        margin: 1rem 0;
+        padding-left: 1rem;
+        border-left: 3px solid var(--accent);
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="topbar">
+      <strong>TriviaMaker</strong>
+      <a href="../admin/index.html">Studio</a>
+      <a href="../local/index.html?show=feud&amp;token=local">Host controls</a>
+      <a href="../index.html">Demo</a>
+      <a class="spacer" href="https://github.com/machtumens/TriviaMaker">Source</a>
+    </nav>
+    <main>
+      <article id="guide">Loading the guide…</article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

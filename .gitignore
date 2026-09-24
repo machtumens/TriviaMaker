@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+*.pid
+
+.env
+.env.*
+
+.claude/
+.claude-crawl/
+
+.DS_Store
+.vscode/
+.idea/

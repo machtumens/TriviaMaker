@@ -1,0 +1,74 @@
+{
+  "packet": 1,
+  "id": "world",
+  "title": "Around the World",
+  "categories": [
+    {
+      "id": "capitals",
+      "title": "Capitals",
+      "questions": [
+        {
+          "prompt": "What is the capital of Japan?",
+          "answer": "Tokyo"
+        },
+        {
+          "prompt": "What is the capital of Australia?",
+          "answer": "Canberra",
+          "note": "Sydney is the usual wrong answer."
+        },
+        {
+          "prompt": "Which country has three capital cities?",
+          "answer": "South Africa",
+          "note": "Pretoria, Cape Town and Bloemfontein — executive, legislative and judicial."
+        }
+      ]
+    },
+    {
+      "id": "rivers",
+      "title": "Rivers and Mountains",
+      "questions": [
+        {
+          "prompt": "What is the longest river in Africa?",
+          "answer": "The Nile",
+          "accept": [
+            "Nile"
+          ]
+        },
+        {
+          "prompt": "What is the highest mountain above sea level?",
+          "answer": "Mount Everest",
+          "accept": [
+            "Everest"
+          ]
+        },
+        {
+          "prompt": "Which mountain range separates Europe from Asia?",
+          "answer": "The Urals",
+          "accept": [
+            "Urals",
+            "Ural Mountains"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flags",
+      "title": "Flags",
+      "questions": [
+        {
+          "prompt": "Which country's flag has a red maple leaf on it?",
+          "answer": "Canada"
+        },
+        {
+          "prompt": "How many stars are on the flag of the United States?",
+          "answer": 50
+        },
+        {
+          "prompt": "Which is the only national flag that is not a rectangle or a square?",
+          "answer": "Nepal",
+          "note": "Switzerland and Vatican City are square, so 'not four-sided' is the point."
+        }
+      ]
+    }
+  ]
+}

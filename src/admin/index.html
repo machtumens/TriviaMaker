@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TriviaMaker — Studio</title>
+    <link rel="stylesheet" href="../ui/controls.css" />
+    <link rel="stylesheet" href="./studio.css" />
+  </head>
+  <body class="studio-page">
+    <header class="studio-bar">
+      <div class="brand">TriviaMaker <span>Studio</span></div>
+      <span id="saved" class="saved"></span>
+      <span class="spacer"></span>
+      <a class="show-link" href="../guide/index.html">Guide</a>
+      <button id="reset" class="ghost" type="button">Start over</button>
+      <button id="import" type="button">Import…</button>
+      <button id="export" type="button">Export</button>
+      <button id="start" class="primary" type="button">Start the show →</button>
+    </header>
+
+    <main class="studio">
+      <div>
+        <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+        <div class="panel" id="panel"></div>
+      </div>
+      <aside class="side">
+        <div class="preview" id="preview"></div>
+        <div class="checks" id="checks"></div>
+      </aside>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

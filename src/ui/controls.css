@@ -1,0 +1,203 @@
+/* The control surfaces — host controller and Studio — share this sheet.
+   They are tools, not the show: light grey, high contrast, big targets, and
+   deliberately independent of whatever the preset does to the projector. */
+
+:root {
+  --bg: #f1f2f4;
+  --surface: #ffffff;
+  --surface-sunken: #f7f8fa;
+  --surface-raised: #ffffff;
+  --line: #dcdfe4;
+  --line-strong: #c3c8d1;
+  --text: #171a1f;
+  --muted: #676e7a;
+  --accent: #2f5fe0;
+  --accent-ink: #ffffff;
+  --accent-wash: #eaf0ff;
+  --correct: #12784a;
+  --correct-wash: #e4f6ec;
+  --wrong: #b4232a;
+  --wrong-wash: #fdeaea;
+  --touch: 48px;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-lift: 0 2px 6px rgba(16, 24, 40, 0.09);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.host-controller { padding: 12px 12px 96px; }
+
+h1 { font-size: 1.05rem; margin: 0; letter-spacing: -0.01em; }
+h2 {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); margin: 22px 0 8px; font-weight: 700;
+}
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+}
+.phase {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--accent); background: var(--accent-wash); border: 1px solid transparent;
+  padding: 5px 11px; border-radius: 999px; white-space: nowrap; font-weight: 700;
+}
+
+button {
+  min-height: var(--touch);
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+button:hover:not(:disabled) { border-color: var(--accent); box-shadow: var(--shadow-lift); }
+button:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.primary:hover:not(:disabled) { background: #2750c4; }
+button.correct { background: var(--correct-wash); color: var(--correct); border-color: #a8dcc0; }
+button.wrong { background: var(--wrong-wash); color: var(--wrong); border-color: #f0b4b4; }
+
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Many teams: pick who answered, then judge. Two buttons per team does not
+   fit a phone once a show runs more than a handful of groups. */
+.team-picker {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px; width: 100%;
+}
+.team-picker button.chip {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+  min-height: 52px; font-size: 0.84rem; text-align: left;
+  border-left: 5px solid var(--team-color, var(--line-strong));
+  white-space: nowrap; overflow: hidden;
+}
+.team-picker button.chip[data-selected="true"] {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+.chip-score { flex: 0 0 auto; font-variant-numeric: tabular-nums; opacity: 0.75; font-weight: 700; }
+.picker-hint { width: 100%; font-size: 0.78rem; color: var(--muted); margin: 2px 0 0; }
+
+.answer-list { display: grid; gap: 6px; width: 100%; margin-top: 10px; }
+.answer-list button.answer {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  text-align: left; min-height: 46px; font-size: 0.95rem;
+}
+.answer-list button.answer[data-revealed="true"] {
+  opacity: 0.45; text-decoration: line-through; background: var(--surface-sunken);
+}
+.answer-points { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); }
+.answer-list button.answer[data-revealed="true"] .answer-points { color: var(--muted); }
+
+.question-list { display: grid; gap: 6px; }
+.question-list button.question-item {
+  display: flex; align-items: baseline; gap: 10px; text-align: left;
+  min-height: 46px; font-weight: 500;
+}
+.question-list button.question-item .value { color: var(--accent); font-weight: 700; }
+.question-list button.question-item .prompt {
+  font-size: 0.85rem; color: var(--muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+.verdict { width: 100%; margin-top: 10px; }
+.verdict button { flex: 1; font-size: 1.05rem; }
+
+.board { display: grid; gap: 6px; }
+.board-column { display: grid; gap: 6px; }
+.board-column .head {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); text-align: center; padding: 4px 2px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.board button { min-height: 56px; display: grid; gap: 2px; padding: 6px; }
+.board button .value { font-size: 1.05rem; color: var(--accent); font-weight: 700; }
+.board button .prompt {
+  font-size: 0.66rem; font-weight: 400; color: var(--muted); line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow);
+}
+.card .label {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); font-weight: 700;
+}
+.card .prompt { font-size: 1.05rem; margin: 4px 0 10px; }
+.card .answer { font-size: 1.15rem; font-weight: 700; color: var(--correct); }
+.card .note { font-size: 0.85rem; color: var(--muted); margin-top: 6px; font-style: italic; }
+
+.scores { display: grid; gap: 6px; }
+.score-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; background: var(--surface); border: 1px solid var(--line);
+  border-left: 4px solid var(--team, var(--accent)); border-radius: var(--radius);
+}
+.score-row .value { font-variant-numeric: tabular-nums; font-weight: 700; margin-left: auto; }
+.score-row .tag {
+  font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  color: var(--muted); background: var(--surface-sunken);
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
+}
+/* A group sitting this round out is still on the list — greyed, never missing,
+   so the host can see at a glance that it is waiting rather than gone. */
+.score-row[data-sitting-out="true"] { opacity: 0.55; }
+
+.undo-dock {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; gap: 8px; padding: 10px 12px;
+  background: linear-gradient(to top, var(--bg) 70%, rgba(241, 242, 244, 0));
+}
+.undo-dock button { flex: 1; }
+
+.banner {
+  padding: 10px 12px; border-radius: var(--radius); margin-top: 10px;
+  background: var(--wrong-wash); border: 1px solid #f0b4b4; color: var(--wrong);
+  font-size: 0.85rem;
+}
+.banner[hidden] { display: none; }
+
+/* The strip above the controller: which show, which questions, where to project. */
+.launcher {
+  display: flex; gap: 0.7rem; align-items: center; flex-wrap: wrap;
+  padding: 0.6rem 0.8rem; margin-bottom: 0.7rem;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.launcher button { min-height: 38px; padding: 0.35rem 0.9rem; border-radius: 8px; }
+.launcher button:not(.secondary) {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+.launcher .hint { color: var(--muted); font-size: 0.85rem; }
+.launcher .hint.bad { color: var(--wrong); }
+.launcher select {
+  font: inherit; padding: 0.4rem 0.5rem; border-radius: 8px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line-strong);
+  max-width: 14rem;
+}
+.launcher select[hidden] { display: none; }
+.launcher .show-link {
+  color: var(--muted); text-decoration: none; font-size: 0.85rem; font-weight: 600;
+  padding: 0.3rem 0.7rem; border: 1px solid var(--line); border-radius: 999px;
+}
+.launcher .show-link:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }

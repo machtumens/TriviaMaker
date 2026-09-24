@@ -1,0 +1,48 @@
+{
+  "packet": 1,
+  "id": "history",
+  "title": "History",
+  "categories": [
+    {
+      "title": "The Ancient World",
+      "questions": [
+        { "prompt": "In which country would you find the Great Pyramid of Giza?", "answer": "Egypt" },
+        {
+          "prompt": "Which ancient civilisation built Machu Picchu?",
+          "answer": "The Inca",
+          "accept": ["Inca", "Incas"]
+        },
+        {
+          "prompt": "Which volcano destroyed the Roman city of Pompeii?",
+          "answer": "Mount Vesuvius",
+          "accept": ["Vesuvius"]
+        }
+      ]
+    },
+    {
+      "title": "Explorers",
+      "questions": [
+        { "prompt": "Who was the first person to walk on the Moon?", "answer": "Neil Armstrong" },
+        {
+          "prompt": "Whose crew completed the first voyage all the way around the world?",
+          "answer": "Ferdinand Magellan",
+          "accept": ["Magellan", "Elcano", "Juan Sebastian Elcano"],
+          "note": "Magellan died on the way; Elcano brought the ship home. Accept either name."
+        },
+        { "prompt": "Who was the first woman in space?", "answer": "Valentina Tereshkova" }
+      ]
+    },
+    {
+      "title": "The Twentieth Century",
+      "questions": [
+        { "prompt": "In which year did the Second World War end?", "answer": 1945 },
+        { "prompt": "Which city was divided by a wall until 1989?", "answer": "Berlin" },
+        {
+          "prompt": "What was the name of the first artificial satellite sent into space?",
+          "answer": "Sputnik",
+          "accept": ["Sputnik 1"]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TriviaMaker — host controls</title>
+    <link rel="stylesheet" href="../ui/controls.css" />
+  </head>
+  <body class="host-controller">
+    <div class="launcher">
+      <strong id="show-title">loading…</strong>
+      <button id="open-projector" type="button">Open projector window</button>
+      <button id="packet-choose" class="secondary" type="button">Load questions…</button>
+      <select id="packet-pick" aria-label="Question packet" hidden></select>
+      <input id="packet-file" type="file" accept=".json,.csv" hidden />
+      <span id="packet-status" class="hint">or drop a .json / .csv packet on this page</span>
+    </div>
+    <div class="launcher">
+      <span class="hint">Show:</span>
+      <a class="show-link" href="?show=studio&amp;token=local">My show</a>
+      <a class="show-link" href="?show=feud&amp;token=local">Family Feud</a>
+      <a class="show-link" href="?show=assembly&amp;token=local">Quiz Bowl</a>
+      <a class="show-link" href="?show=demo&amp;token=local">Demo</a>
+      <a class="show-link" href="../admin/index.html">Customise…</a>
+      <a class="show-link" href="../guide/index.html">Guide</a>
+      <span class="hint">Drag the projector window to the projector, then press F11 for fullscreen.</span>
+    </div>
+    <div id="root">Connecting…</div>
+    <script type="module" src="../local/main.ts"></script>
+  </body>
+</html>

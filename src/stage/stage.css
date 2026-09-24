@@ -1,0 +1,406 @@
+/*
+ * The projector stylesheet, shared by both stage entries: src/stage/index.html
+ * (served by the node server) and src/local/stage.html (the one-laptop projector
+ * window). It used to be an inline <style> copied into both files, which is how
+ * the Family Feud slots and the wrapping scoreboard reached one and not the other.
+ *
+ * Every value here is a fallback. The real values arrive as CSS custom properties
+ * from the theme cascade on the first broadcast.
+ */
+
+/* Every value below is a fallback. The real values arrive as CSS custom
+   properties from the theme cascade on the first broadcast, so a preset
+   restyles the whole projector without touching this file. */
+:root {
+  --color-bg: #0b1020;
+  --color-bg-elevated: #151c34;
+  --color-text: #f5f7ff;
+  --color-text-muted: #93a0c4;
+  --color-accent: #ffc53d;
+  --color-tile: #1b2547;
+  --color-tile-consumed: #12182c;
+  --color-tile-text: #ffc53d;
+  --color-correct: #3ddc84;
+  --color-scrim: rgba(4, 8, 20, 0.88);
+  --type-display: Impact, system-ui, sans-serif;
+  --type-body: system-ui, sans-serif;
+  --type-base-size: 20;
+  --type-scale-tile: 3.2;
+  --type-scale-question: 3.6;
+  --type-scale-category: 1.6;
+  --type-scale-score: 2;
+  --type-uppercase-categories: uppercase;
+  --space-board-gap: 10;
+  --space-screen-padding: 48;
+  --radius-tile: 10;
+  --radius-card: 16;
+  --shadow-tile: 0 4px 0 rgba(0, 0, 0, 0.35);
+
+  --unit: 1px;
+  --base: calc(var(--type-base-size) * 1px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--type-body);
+  overflow: hidden;
+}
+
+#root {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: calc(var(--base) * 0.8);
+  height: 100%;
+  padding: calc(var(--space-screen-padding) * 1px);
+}
+
+/* Between questions the scoreboard IS the screen, so the board row gives up its
+   height and the scores take it. While a question is open the scoreboard drops
+   back to a strip under the board. The two views hand the screen to each other
+   rather than one sitting in the other's empty space. */
+:root[data-view="standings"][data-board="list-board"] #root { grid-template-rows: auto 1fr 1fr; }
+:root[data-view="standings"][data-board="list-board"] { --deck-scale: 1.45; }
+
+/* The two halves meet in the middle: the progress line falls to the bottom of
+   its half, the deck sits at the top of its own, so the pair reads as one block
+   in the centre of the screen rather than a strip stranded at the bottom. */
+:root[data-view="standings"][data-board="list-board"] .feud-board { align-content: end; }
+:root[data-view="standings"][data-board="list-board"] .scoreboard { align-content: start; }
+
+@keyframes deck-take {
+  from { opacity: 0; transform: translateY(2.5%) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.scoreboard[data-entering="true"] {
+  animation: deck-take var(--motion-phase, 260ms) var(--motion-ease-enter) both;
+}
+:root[data-motion="off"] .scoreboard { animation: none; }
+
+/* Rendered as the preset writes it. Forcing uppercase here meant an author
+   could not put mixed case in the corner at all. */
+.round-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--base);
+  font-family: var(--type-display);
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+  font-size: calc(var(--base) * var(--type-scale-category));
+}
+.round-bar .subtitle { color: var(--color-text-muted); font-size: 0.6em; }
+
+.board {
+  display: grid;
+  gap: calc(var(--space-board-gap) * 1px);
+  align-content: stretch;
+  min-height: 0;
+}
+.board-column { display: grid; gap: calc(var(--space-board-gap) * 1px); grid-auto-rows: 1fr; }
+
+.category {
+  display: grid;
+  place-items: center;
+  padding: 0.4em;
+  text-align: center;
+  background: var(--color-bg-elevated);
+  border-radius: calc(var(--radius-tile) * 1px);
+  font-family: var(--type-display);
+  text-transform: var(--type-uppercase-categories);
+  letter-spacing: 0.03em;
+  font-size: calc(var(--base) * var(--type-scale-category));
+  line-height: 1.1;
+}
+
+.tile {
+  display: grid;
+  place-items: center;
+  background: var(--color-tile);
+  color: var(--color-tile-text);
+  border-radius: calc(var(--radius-tile) * 1px);
+  box-shadow: var(--shadow-tile);
+  font-family: var(--type-display);
+  font-size: calc(var(--base) * var(--type-scale-tile));
+  letter-spacing: 0.02em;
+}
+.tile[data-consumed='true'] {
+  background: var(--color-tile-consumed);
+  color: transparent;
+  box-shadow: none;
+}
+.tile[data-empty='true'] { background: transparent; box-shadow: none; color: transparent; }
+
+/* A grid, not a flex row: flex items refuse to shrink past their own text,
+   so a dozen teams pushed the whole stage wider than the projector and
+   carried the board off the right-hand edge with them. */
+/* Family Feud board: numbered slots that fill in as answers are called. */
+.feud-board { align-content: center; justify-items: center; gap: calc(var(--base) * 0.8); }
+.feud-progress {
+  font-family: var(--type-display);
+  font-size: calc(var(--base) * 1.6);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+.feud-pips { display: flex; flex-wrap: wrap; gap: 0.4em; justify-content: center; max-width: 80%; }
+.feud-pips .pip {
+  min-width: 2em; padding: 0.2em 0.4em; text-align: center;
+  border-radius: calc(var(--radius-pill) * 1px);
+  background: var(--color-bg-elevated); color: var(--color-text-muted);
+  font-size: calc(var(--base) * 0.9); font-variant-numeric: tabular-nums;
+}
+.feud-pips .pip[data-consumed="true"] { opacity: 0.3; }
+
+/* The slots have an explicit width, so without this they align to the start of
+   a stretched grid cell and sit off to one side of the screen. */
+.question-overlay.feud {
+  justify-items: center;
+  align-content: center;
+  gap: calc(var(--base) * 0.7);
+}
+.question-overlay.feud .question-prompt { text-align: center; }
+.question-overlay.feud .question-prompt { font-size: calc(var(--base) * 1.9); }
+
+.feud-slots {
+  perspective: 1200px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--slot-rows, 4), 1fr);
+  grid-auto-flow: column;
+  gap: calc(var(--base) * 0.45);
+  width: min(92%, 60em);
+  flex: 1;
+  min-height: 0;
+}
+/* One colour per slot, warmest first: slot 1 is worth the most and the ramp
+   cools as the answers get cheaper, so the colour ranks the board instead of
+   only telling the tiles apart. */
+.slot[data-rank="0"] { --slot-tint: #f5c518; }
+.slot[data-rank="1"] { --slot-tint: #f97316; }
+.slot[data-rank="2"] { --slot-tint: #ef4444; }
+.slot[data-rank="3"] { --slot-tint: #ec4899; }
+.slot[data-rank="4"] { --slot-tint: #a855f7; }
+.slot[data-rank="5"] { --slot-tint: #6366f1; }
+.slot[data-rank="6"] { --slot-tint: #0ea5e9; }
+.slot[data-rank="7"] { --slot-tint: #14b8a6; }
+
+.slot {
+  position: relative;
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6em; padding: 0.25em 0.8em; min-width: 0;
+  border-radius: calc(var(--radius-tile) * 1px);
+  border-left: 0.2em solid var(--slot-tint, var(--color-tile-text));
+  background: var(--color-tile);
+  font-size: calc(var(--base) * 1.5 * var(--slot-scale, 1));
+}
+
+/* A revealed slot lights up in its own colour; the text stays on the dark tile
+   so it reads the same whatever the tint is. */
+.slot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--slot-tint, transparent);
+  opacity: 0;
+}
+/* A revealed slot drops to the page's near-black first. Tinting over the navy
+   tile turned gold into olive — mixing a warm hue with blue always will. Over
+   black it stays the colour it is. */
+.slot[data-revealed="true"] { background: var(--color-bg); }
+.slot[data-revealed="true"]::before { opacity: 0.34; }
+.slot > * { position: relative; }
+
+.slot[data-revealed="false"] { justify-content: center; }
+.slot-number {
+  font-family: var(--type-display);
+  color: var(--slot-tint, var(--color-tile-text));
+  opacity: 0.75;
+}
+.slot-text {
+  font-family: var(--type-display);
+  text-transform: uppercase; letter-spacing: 0.02em;
+  color: var(--color-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* An answer too long for one line reads better wrapped at a size people can see
+   than squeezed onto one line they cannot. */
+.slot[data-long="true"] .slot-text {
+  white-space: normal; line-height: 1.08; text-overflow: clip;
+}
+.slot-points {
+  font-variant-numeric: tabular-nums; font-weight: 700;
+  color: var(--slot-tint, var(--color-tile-text));
+  background: var(--color-bg); padding: 0 0.45em;
+  border-radius: calc(var(--radius-pill) * 1px);
+}
+
+/* The board is the drama: a question opens, an answer flips over, a strike
+   lands. Durations and easings come from the show's motion config, so a preset
+   can slow the whole thing down or switch it off. */
+@keyframes question-enter {
+  from { opacity: 0; transform: translateY(-1.5%) scale(0.965); }
+  to { opacity: 1; transform: none; }
+}
+.question-overlay[data-enter="true"] {
+  animation: question-enter var(--motion-question-enter, 420ms) var(--motion-ease-enter) both;
+}
+
+@keyframes slot-flip {
+  from { transform: rotateX(-92deg); opacity: 0; }
+  55% { opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+.slot[data-new="true"] {
+  transform-origin: top center;
+  backface-visibility: hidden;
+  animation: slot-flip var(--motion-answer-reveal, 300ms) var(--motion-ease-enter) both;
+}
+
+@keyframes strike-land {
+  from { transform: scale(2.4); opacity: 0; }
+  60% { transform: scale(0.88); opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+.strikes .strike[data-new="true"] {
+  animation: strike-land calc(var(--motion-buzz-flash, 180ms) * 2.5) var(--motion-ease-bounce) both;
+}
+
+/* One switch for motion.enabled false and for a viewer who asked for less. */
+:root[data-motion="off"] .question-overlay,
+:root[data-motion="off"] .slot,
+:root[data-motion="off"] .strikes .strike {
+  animation: none;
+}
+
+.strikes { display: flex; gap: 0.3em; }
+.strikes .strike {
+  font-size: calc(var(--base) * 2.4); line-height: 1;
+  color: var(--color-wrong); opacity: 0.15;
+}
+.strikes .strike[data-lit="true"] { opacity: 1; }
+
+/* A scoreboard, not a card grid: every team is a bar whose fill is its score
+   against the leader's. Colour means whose it is, length means how far ahead —
+   sixteen identical tiles with sixteen numbers on them said neither. */
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(var(--scoreboard-columns, 4), minmax(0, 1fr));
+  gap: calc(var(--base) * 0.3) calc(var(--base) * 0.4);
+}
+
+.team {
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.24em 0.7em;
+  background: var(--color-bg-elevated);
+  border-left: 0.16em solid var(--team-color, var(--color-accent));
+  border-radius: 0 calc(var(--radius-tile) * 0.35px) calc(var(--radius-tile) * 0.35px) 0;
+  font-size: calc(var(--base) * var(--type-scale-score) * var(--scoreboard-scale, 1) * var(--team-scale, 1) * var(--deck-scale, 1));
+}
+
+.team::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--fill, 0%);
+  background: var(--team-color, var(--color-accent));
+  opacity: 0.26;
+}
+.team > * { position: relative; }
+
+.team .name {
+  font-family: var(--type-display);
+  font-size: 0.46em;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+
+  /* Dimmed white rather than the muted blue: the name sits over the bar as often
+     as over the background, and a muted grey on a team colour reads as dirt. */
+  color: var(--color-text);
+  opacity: 0.75;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team .score {
+  font-family: var(--type-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+  flex: 0 0 auto;
+}
+
+/* One number on the screen is gold, and it is the one in front. */
+.team[data-leader="true"] { border-left-width: 0.3em; }
+.team[data-leader="true"]::before { opacity: 0.42; }
+.team[data-leader="true"] .score { color: var(--color-accent); }
+.team[data-leader="true"] .name { opacity: 1; }
+
+/* Side by side, a name and a score split a narrow cell and both end up
+   clipped. Stacked, the name gets the full width and the score reads as
+   the number it is. */
+.scoreboard[data-crowded="true"] .team {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0.3em 0.6em;
+}
+.scoreboard[data-crowded="true"] .team .name { font-size: 0.4em; }
+.scoreboard[data-crowded="true"] .team .score { font-size: 1em; line-height: 1.05; }
+
+.team[data-eliminated='true'] { opacity: 0.35; }
+.team[data-eliminated='true']::before { opacity: 0.1; }
+
+.question-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--base);
+  padding: calc(var(--space-screen-padding) * 2px);
+  background: var(--color-scrim);
+  backdrop-filter: blur(6px);
+}
+.question-value {
+  font-family: var(--type-display);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  font-size: calc(var(--base) * var(--type-scale-category));
+}
+.question-prompt {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  text-wrap: balance;
+  font-family: var(--type-display);
+  font-size: calc(var(--base) * var(--type-scale-question));
+  line-height: 1.15;
+}
+.timer { height: 0.5em; border-radius: 999px; background: var(--color-bg-elevated); overflow: hidden; }
+.timer-fill { height: 100%; width: 100%; background: var(--color-accent); }
+.timer-fill[data-warn='true'] { background: var(--color-wrong, #ff5c5c); }
+.timer[hidden] { display: none; }
+
+.placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--color-text-muted);
+  font-family: var(--type-display);
+  font-size: calc(var(--base) * 1.4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+    

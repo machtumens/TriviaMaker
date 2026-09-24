@@ -1,0 +1,118 @@
+import assert from 'node:assert/strict'
+import { register, validateConfigPlugins } from './index'
+import { resolveConfig } from '../config/resolve'
+import type { GameShowConfig, Round } from '../config/types'
+
+const TEST_TRANSPORT = 'vcp-test-transport'
+const TEST_SCORING = 'vcp-test-scoring'
+const TEST_LAYOUT = 'vcp-test-layout'
+const TEST_STYLE = 'vcp-test-style'
+
+register('transport', { key: TEST_TRANSPORT })
+register('scoring', { key: TEST_SCORING })
+register('layout', { key: TEST_LAYOUT })
+register('style', { key: TEST_STYLE })
+
+const BASE = resolveConfig({ meta: { id: 'preflight', title: 'Preflight' } })
+
+function validConfig(): GameShowConfig {
+  const round: Round = {
+    id: 'r1',
+    title: 'Round 1',
+    style: { kind: 'custom', plugin: TEST_STYLE, options: {} },
+  }
+  return {
+    ...BASE,
+    program: { ...BASE.program, rounds: [round] },
+    rules: {
+      ...BASE.rules,
+      scoring: { ...BASE.rules.scoring, engine: TEST_SCORING },
+    },
+    layout: { ...BASE.layout, stageLayout: TEST_LAYOUT },
+    runtime: {
+      ...BASE.runtime,
+      transport: { ...BASE.runtime.transport, driver: TEST_TRANSPORT },
+    },
+  }
+}
+
+function assertNamesBadKey(errors: string[], where: string, badKey: string) {
+  assert.equal(errors.length, 1, `expected exactly one error, got: ${errors.join(' | ')}`)
+  const [message] = errors
+  assert.ok(message, 'error message present')
+  assert.ok(
+    message.includes(where),
+    `error should name the config path "${where}": ${message}`,
+  )
+  assert.ok(
+    message.includes(`"${badKey}"`),
+    `error should name the bad key "${badKey}": ${message}`,
+  )
+}
+
+{
+  assert.deepEqual(
+    validateConfigPlugins(validConfig()),
+    [],
+    'a config referencing only registered keys produces no errors',
+  )
+}
+
+{
+  const cfg = validConfig()
+  const bad: GameShowConfig = {
+    ...cfg,
+    runtime: { ...cfg.runtime, transport: { ...cfg.runtime.transport, driver: 'no-such-transport' } },
+  }
+  assertNamesBadKey(validateConfigPlugins(bad), 'runtime.transport.driver', 'no-such-transport')
+}
+
+{
+  const cfg = validConfig()
+  const bad: GameShowConfig = {
+    ...cfg,
+    rules: { ...cfg.rules, scoring: { ...cfg.rules.scoring, engine: 'no-such-scoring' } },
+  }
+  assertNamesBadKey(validateConfigPlugins(bad), 'rules.scoring.engine', 'no-such-scoring')
+}
+{
+  const cfg = validConfig()
+  const bad: GameShowConfig = {
+    ...cfg,
+    layout: { ...cfg.layout, stageLayout: 'no-such-layout' },
+  }
+  assertNamesBadKey(validateConfigPlugins(bad), 'layout.stageLayout', 'no-such-layout')
+}
+{
+  const cfg = validConfig()
+  const round: Round = {
+    id: 'r1',
+    title: 'Round 1',
+    style: { kind: 'custom', plugin: 'no-such-style', options: {} },
+  }
+  const bad: GameShowConfig = { ...cfg, program: { ...cfg.program, rounds: [round] } }
+  assertNamesBadKey(validateConfigPlugins(bad), 'program.rounds[0].style.plugin', 'no-such-style')
+}
+{
+  const cfg = validConfig()
+  const round = {
+    id: 'r1', title: 'Round 1', bankId: 'bank',
+    style: { kind: 'wheel' },
+  } as unknown as Round
+  const bad: GameShowConfig = { ...cfg, program: { ...cfg.program, rounds: [round] } }
+  assertNamesBadKey(validateConfigPlugins(bad), 'program.rounds[0].style.kind', 'wheel')
+}
+
+{
+  const cfg = validConfig()
+  const round: Round = {
+    id: 'r1',
+    title: 'Round 1',
+    style: { kind: 'custom', plugin: TEST_STYLE, options: {} },
+    overrides: { rules: { scoring: { engine: 'no-such-round-scoring' } } },
+  }
+  const bad: GameShowConfig = { ...cfg, program: { ...cfg.program, rounds: [round] } }
+  assertNamesBadKey(validateConfigPlugins(bad), 'program.rounds[0].scoring.engine', 'no-such-round-scoring')
+}
+
+console.log('✓ validateConfigPlugins: all checks passed')

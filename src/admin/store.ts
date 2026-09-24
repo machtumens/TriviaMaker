@@ -1,0 +1,77 @@
+import {
+  dealQuestions, defaultDraft, feudQuestionsFromBank, loadDraft, newRound, saveDraft,
+  shuffleHeats, type Draft, type DraftRound,
+} from './draft'
+import { readPacketText } from '../config/packet'
+import familyFeudCsv from '../../packets/family-feud.csv?raw'
+
+/**
+ * One mutable draft, shared by every panel. Panels mutate it in place and then
+ * say which kind of repaint they need:
+ *
+ *   refresh()  — a value changed. Save, re-check, repaint the preview. The panel
+ *                itself is left alone, because rebuilding it mid-keystroke would
+ *                take the focus out of the field being typed into.
+ *   rerender() — the shape changed (a row added, a tab switched). Rebuild it all.
+ */
+
+export type Tab = 'show' | 'rounds' | 'questions' | 'teams' | 'look' | 'motion' | 'words'
+
+interface StudioState {
+  draft: Draft
+  tab: Tab
+  round: number
+}
+
+/**
+ * A browser that has never opened the Studio gets the real show, not an empty
+ * one: the shipped question packet dealt across the heats and the final, no
+ * question used twice. Anything saved wins over it.
+ */
+export function freshDraft(): Draft {
+  const { bank } = readPacketText(familyFeudCsv, 'family-feud.csv')
+  const draft = shuffleHeats(defaultDraft())
+  return bank ? dealQuestions(draft, feudQuestionsFromBank(bank)) : draft
+}
+
+export const state: StudioState = {
+  draft: loadDraft() ?? freshDraft(),
+  tab: 'show',
+  round: 0,
+}
+
+let onRefresh: () => void = () => {}
+let onRerender: () => void = () => {}
+
+export function bind(refreshFn: () => void, rerenderFn: () => void): void {
+  onRefresh = refreshFn
+  onRerender = rerenderFn
+}
+
+export function refresh(): void {
+  saveDraft(state.draft)
+  onRefresh()
+}
+
+export function rerender(): void {
+  onRerender()
+}
+
+export function replaceDraft(next: Draft): void {
+  state.draft = next
+  state.round = Math.min(state.round, next.rounds.length - 1)
+}
+
+/** The round every panel is currently working on. Never undefined — a draft
+ *  without rounds grows one rather than leaving the screen empty. */
+export function currentRound(): DraftRound {
+  if (state.draft.rounds.length === 0) state.draft.rounds.push(newRound(0))
+  state.round = Math.min(Math.max(0, state.round), state.draft.rounds.length - 1)
+  return state.draft.rounds[state.round]!
+}
+
+export function goTo(tab: Tab, round?: number): void {
+  state.tab = tab
+  if (round !== undefined) state.round = round
+  rerender()
+}

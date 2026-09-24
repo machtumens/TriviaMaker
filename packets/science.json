@@ -1,0 +1,84 @@
+{
+  "packet": 1,
+  "id": "science",
+  "title": "Science",
+  "categories": [
+    {
+      "id": "body",
+      "title": "The Human Body",
+      "questions": [
+        {
+          "prompt": "Which organ pumps blood around the body?",
+          "answer": "The heart",
+          "accept": [
+            "heart"
+          ]
+        },
+        {
+          "prompt": "How many bones are in an adult human body?",
+          "answer": 206,
+          "note": "Babies are born with about 270; many fuse as they grow."
+        },
+        {
+          "prompt": "Which part of the cell is known as the powerhouse?",
+          "answer": "The mitochondria",
+          "accept": [
+            "mitochondria",
+            "mitochondrion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chemistry",
+      "title": "Everyday Chemistry",
+      "questions": [
+        {
+          "prompt": "What is the chemical symbol for gold?",
+          "answer": "Au"
+        },
+        {
+          "prompt": "What gas do we breathe out that plants take in?",
+          "answer": "Carbon dioxide",
+          "accept": [
+            "CO2"
+          ]
+        },
+        {
+          "prompt": "Which metal is a liquid at room temperature?",
+          "answer": "Mercury",
+          "note": "If someone says gallium: it melts in your hand, but it is solid at room temperature."
+        }
+      ]
+    },
+    {
+      "id": "animals",
+      "title": "Animals",
+      "questions": [
+        {
+          "prompt": "What is the largest animal on Earth?",
+          "answer": "The blue whale",
+          "accept": [
+            "blue whale"
+          ]
+        },
+        {
+          "prompt": "Which is the only mammal that can truly fly?",
+          "answer": "The bat",
+          "accept": [
+            "bat",
+            "bats"
+          ]
+        },
+        {
+          "prompt": "How many hearts does an octopus have?",
+          "answer": "Three",
+          "accept": [
+            "3"
+          ],
+          "note": "Two pump blood to the gills, one to the rest of the body."
+        }
+      ]
+    }
+  ]
+}
