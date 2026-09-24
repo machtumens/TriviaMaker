@@ -34,6 +34,39 @@ works, as long as the host window is open on the same machine.
 The `token=local` on the end is not a password. It means nothing in this mode and the
 show runs without it; it exists for the wifi setup further down, where it does matter.
 
+## Quick start
+
+**The week before**
+
+1. Open the [Studio](https://machtumens.github.io/TriviaMaker/admin/index.html) on the laptop
+   that will run the show. It builds the whole thing on first open — sixteen groups, four
+   heats, a final, all sixteen questions dealt out.
+2. **Teams** tab: put the real class names in.
+3. **Rounds** tab: look at the draw (`Heat 1: Group 6, Group 5, …`). **Redraw the groups at
+   random** until you like it, then leave it. Tell the groups which heat they are in.
+4. That is it. It saves itself on that laptop, in that browser.
+
+**On the day**
+
+| # | Do this |
+| --- | --- |
+| 1 | Open the [host controls](https://machtumens.github.io/TriviaMaker/local/index.html?show=studio&token=local) on the laptop |
+| 2 | Press **Open projector window**, drag it to the projector, press **F11** |
+| 3 | Press **Start round** |
+| 4 | Tap a question — it opens on the projector with the answers hidden |
+| 5 | Tap **the group that answered**, then tap **the answer they said**. It flips over and pays them |
+| 6 | Wrong answer → **Strike**. Three strikes is just an X on the screen; you decide what it means |
+| 7 | Heat over (its 3 questions done) → **Who goes through?** → tap the group → **Send through →** |
+| 8 | Repeat for all four heats, then the final. Highest score in the final wins |
+
+**The two rules of the room**
+
+- The host window has the answers on it. Keep it facing you, never at the projector.
+- **Undo last action** is at the bottom of the host screen and reaches back through
+  everything — wrong group, wrong answer, wrong winner. Use it instead of arguing.
+
+Everything below is the long version.
+
 ## Running the show
 
 Open one link, press one button, and you have both screens.
