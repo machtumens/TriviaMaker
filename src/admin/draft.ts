@@ -149,6 +149,7 @@ export interface DraftCopy {
   arm: string
   correct: string
   wrong: string
+  noAnswer: string
   skip: string
   next: string
   endRound: string
@@ -294,6 +295,7 @@ export function defaultCopy(): DraftCopy {
     arm: 'Arm Buzzers',
     correct: 'Correct',
     wrong: 'Wrong',
+    noAnswer: 'No Answer',
     skip: 'Skip',
     next: 'Next',
     endRound: 'End Round',
@@ -648,6 +650,7 @@ function copyOf(draft: Draft): CopyStrings {
       arm: draft.copy.arm,
       correct: draft.copy.correct,
       wrong: draft.copy.wrong,
+      noAnswer: draft.copy.noAnswer,
       skip: draft.copy.skip,
       next: draft.copy.next,
       endRound: draft.copy.endRound,

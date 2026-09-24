@@ -6,7 +6,7 @@ import { fitReport, hasErrors, readPacketText, stampLadderPoints } from '../conf
 import { blankQuizQuestions as blank } from './draft'
 import {
   applyHeatsAndFinal, dealQuestions, defaultDraft, draftToConfig, feudQuestionsFromBank,
-  hexToRgba, importBankIntoRound, newRound, shuffleHeats, upgradeDraft,
+  hexToRgba, importBankIntoRound, loadDraft, newRound, saveDraft, shuffleHeats, upgradeDraft,
   type Draft, type FeudQuestion,
 } from './draft'
 
@@ -288,4 +288,42 @@ function pool(count: number): FeudQuestion[] {
 {
   assert.equal(upgradeDraft(null).rounds.length, 5, 'junk in storage still opens the default show')
   assert.deepEqual(upgradeDraft('nonsense').title, defaultDraft().title, 'so does the wrong type entirely')
+}
+
+{
+  // The draw has to survive the trip through storage: the Studio and the host
+  // page are two pages reading the same saved show, and they must agree on who
+  // is in which heat.
+  const store = new Map<string, string>()
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => { store.set(key, value) },
+      removeItem: (key: string) => { store.delete(key) },
+    },
+    configurable: true,
+  })
+
+  assert.equal(loadDraft(), null, 'nothing saved yet')
+
+  let seed = 11
+  const rng = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648
+    return seed / 2147483648
+  }
+  const drawn = shuffleHeats(dealQuestions(defaultDraft(), pool(16)), rng)
+  saveDraft(drawn)
+
+  const reloaded = loadDraft()
+  assert.ok(reloaded, 'the saved show comes back')
+  assert.deepEqual(
+    reloaded.rounds.map(round => round.teamIds),
+    drawn.rounds.map(round => round.teamIds),
+    'every heat comes back with the same groups in it',
+  )
+  assert.deepEqual(
+    reloaded.rounds.map(round => round.feud.questions.length), [3, 3, 3, 3, 4],
+    'and the questions come back where they were dealt',
+  )
+  build(reloaded)
 }

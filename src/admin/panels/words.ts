@@ -18,10 +18,13 @@ export function wordsPanel(): HTMLElement[] {
     'On the host controls',
     'Rename the buttons to whatever you say out loud — "Benar" and "Salah" if the show runs in Indonesian.',
   )
-  const entries: Array<{ label: string; key: 'arm' | 'correct' | 'wrong' | 'skip' | 'next' | 'endRound' }> = [
+  const entries: Array<
+    { label: string; key: 'arm' | 'correct' | 'wrong' | 'noAnswer' | 'skip' | 'next' | 'endRound' }
+  > = [
     { label: 'Arm buzzers', key: 'arm' },
     { label: 'Correct', key: 'correct' },
     { label: 'Wrong', key: 'wrong' },
+    { label: 'No answer', key: 'noAnswer' },
     { label: 'Skip', key: 'skip' },
     { label: 'Next', key: 'next' },
     { label: 'End round', key: 'endRound' },

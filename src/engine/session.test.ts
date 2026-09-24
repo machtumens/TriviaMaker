@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import '../registry/bootstrap'
 import {
   advanceToNextRound, createSession, currentRound, dispatchHostAction, resolveAnswer,
+  revealWithNoAnswer,
   resolveRoundContent, styleKeyFor,
 } from './session'
 import { undo } from './log'
@@ -246,6 +247,29 @@ function revealState(config: GameShowConfig, teams: TeamState[], roundIndex = 0)
     /no question is selected/,
     'adjudicating with nothing selected fails by name',
   )
+}
+{
+  let state = createSession(makeConfig())
+  state = dispatchHostAction(state, [{ type: 'setPhase', phase: 'board' }], 1, 1000).state
+  state = dispatchHostAction(state, [
+    { type: 'selectQuestion', questionId: 'a-200' },
+    { type: 'setPhase', phase: 'reading' },
+  ], 2, 2000).state
+  state = dispatchHostAction(state, [{ type: 'setPhase', phase: 'armed' }], 3, 3000).state
+
+  const intents = revealWithNoAnswer(state)
+  assert.deepEqual(
+    intents,
+    [
+      { type: 'consumeQuestion', questionId: 'a-200' },
+      { type: 'setPhase', phase: 'reveal' },
+    ],
+    'no award — nobody answered, the question is just revealed',
+  )
+
+  const applied = dispatchHostAction(state, intents, 4, 4000)
+  assert.equal(applied.state.teams[0]?.score, 0, 'no team was awarded')
+  assert.equal(applied.state.phase, 'reveal', 'and the phase still advances')
 }
 
 {

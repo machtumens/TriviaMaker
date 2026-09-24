@@ -362,6 +362,7 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
           () => { void send('markWrong', { teamId: team.id }) },
         ))
       }
+      row.append(button(payload.copy.host.noAnswer, 'wrong', () => { void send('noAnswer') }))
       return row
     }
 
@@ -398,6 +399,7 @@ function renderControls(payload: BroadcastPayload): HTMLElement {
     }
     verdict.append(judge('markCorrect', payload.copy.host.correct, 'correct'))
     verdict.append(judge('markWrong', payload.copy.host.wrong, 'wrong'))
+    verdict.append(button(payload.copy.host.noAnswer, 'wrong', () => { void send('noAnswer') }))
     row.append(verdict)
   }
 

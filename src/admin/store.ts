@@ -1,5 +1,5 @@
-import { loadDraft, newRound, saveDraft, type Draft, type DraftRound } from './draft'
-import { freshDraft } from './seed'
+import { newRound, saveDraft, type Draft, type DraftRound } from './draft'
+import { freshDraft, loadOrSeed } from './seed'
 
 /**
  * One mutable draft, shared by every panel. Panels mutate it in place and then
@@ -22,7 +22,7 @@ interface StudioState {
 export { freshDraft }
 
 export const state: StudioState = {
-  draft: loadDraft() ?? freshDraft(),
+  draft: loadOrSeed(),
   tab: 'show',
   round: 0,
 }
