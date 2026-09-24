@@ -16,6 +16,7 @@ import { demo } from '../../presets/demo'
 import { familyFeud } from '../../presets/family-feud'
 import familyFeudCsv from '../../packets/family-feud.csv?raw'
 import { draftToConfig, loadDraft } from '../admin/draft'
+import { freshDraft } from '../admin/seed'
 
 interface BuiltInShow {
   input: GameShowConfigInput
@@ -36,12 +37,13 @@ const SHOWS: Record<string, BuiltInShow> = {
   feud: { input: familyFeud, packets: builtInPacket(familyFeudCsv, 'family-feud.csv') },
 }
 
-// A show built in the Studio lives in this browser, not in presets/.
-const studioDraft = loadDraft()
-if (studioDraft) SHOWS['studio'] = { input: draftToConfig(studioDraft), packets: [] }
+// A show built in the Studio lives in this browser, not in presets/. A browser
+// that has never opened the Studio still gets the shipped show rather than a
+// redirect — the host link has to work on its own on the day.
+const studioDraft = loadDraft() ?? freshDraft()
+SHOWS['studio'] = { input: draftToConfig(studioDraft), packets: [] }
 
 const chosen = new URLSearchParams(location.search).get('show') ?? 'assembly'
-if (chosen === 'studio' && !studioDraft) location.replace('../admin/index.html')
 
 const selected = SHOWS[chosen] ?? SHOWS['assembly']!
 const show = selected.input

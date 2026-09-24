@@ -1,9 +1,5 @@
-import {
-  dealQuestions, defaultDraft, feudQuestionsFromBank, loadDraft, newRound, saveDraft,
-  shuffleHeats, type Draft, type DraftRound,
-} from './draft'
-import { readPacketText } from '../config/packet'
-import familyFeudCsv from '../../packets/family-feud.csv?raw'
+import { loadDraft, newRound, saveDraft, type Draft, type DraftRound } from './draft'
+import { freshDraft } from './seed'
 
 /**
  * One mutable draft, shared by every panel. Panels mutate it in place and then
@@ -23,16 +19,7 @@ interface StudioState {
   round: number
 }
 
-/**
- * A browser that has never opened the Studio gets the real show, not an empty
- * one: the shipped question packet dealt across the heats and the final, no
- * question used twice. Anything saved wins over it.
- */
-export function freshDraft(): Draft {
-  const { bank } = readPacketText(familyFeudCsv, 'family-feud.csv')
-  const draft = shuffleHeats(defaultDraft())
-  return bank ? dealQuestions(draft, feudQuestionsFromBank(bank)) : draft
-}
+export { freshDraft }
 
 export const state: StudioState = {
   draft: loadDraft() ?? freshDraft(),
