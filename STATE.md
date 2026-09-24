@@ -17,6 +17,15 @@ recorded as a human one. With no names given the score rule applies and a tie on
 sends both. `presets/family-feud.ts` (server / phone-host mode)
 is still the OLD flat single-round show — the heats format is browser-mode only.
 
+## Published
+`main` is pushed to github.com/machtumens/TriviaMaker and GitHub Pages is enabled
+(build_type: workflow, `.github/workflows/pages.yml` — typecheck + tests + isolation check
+gate every deploy). Live: https://machtumens.github.io/TriviaMaker/
+The repo had lost its history; commit c09be82 is a fresh initial commit of the working tree.
+
+`README.md` IS the guide — the front page and the in-app guide page render the same file
+(`src/guide/main.ts` imports it). There is no GUIDE.md any more; do not re-add one.
+
 ## Where it stands (2026-09-24)
 - Two ways to run: browser-only (`src/local/`, BroadcastChannel between windows) and
   server mode (`npm run show`, SSE down / POST up).

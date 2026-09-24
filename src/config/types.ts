@@ -67,6 +67,7 @@ export interface CopyStrings {
     arm: string
     correct: string
     wrong: string
+    noAnswer: string
     skip: string
     next: string
     endRound: string

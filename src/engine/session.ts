@@ -173,6 +173,26 @@ export function resolveAnswer(state: SessionState, input: ResolveAnswerInput): I
 }
 
 /**
+ * The host opens the answer manually when nobody buzzes in or answers in
+ * time. No scoring happens — this is a reveal, not a verdict.
+ */
+export function revealWithNoAnswer(state: SessionState): Intent[] {
+  const round = currentRound(state.config, state.roundIndex)
+  const questionId = state.currentQuestionId
+  if (questionId === null) {
+    throw new Error(`[session] round "${round.id}": no question is selected; cannot reveal an answer`)
+  }
+
+  const style = resolve<StylePlugin>('style', styleKeyFor(round))
+
+  return [
+    { type: 'consumeQuestion', questionId },
+    ...style.onResolved(state, false),
+    { type: 'setPhase', phase: 'reveal' },
+  ]
+}
+
+/**
  * Who is actually playing a round: still in the show, and on the round's team
  * list if it has one. Heats eliminate inside this set, never outside it.
  */

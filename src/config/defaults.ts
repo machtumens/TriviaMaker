@@ -57,7 +57,7 @@ export const DEFAULT_CONFIG: GameShowConfig = {
   copy: {
     question: { forPoints: 'for {points}' },
     host: {
-      arm: 'Arm Buzzers', correct: 'Correct', wrong: 'Wrong',
+      arm: 'Arm Buzzers', correct: 'Correct', wrong: 'Wrong', noAnswer: 'No Answer',
       skip: 'Skip', next: 'Next', endRound: 'End Round',
     },
   },

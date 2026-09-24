@@ -1,6 +1,8 @@
 import { resolve, type Intent, type SessionState, type StylePlugin } from '../registry/index'
 import { resolvedQuestionSec } from './intents'
-import { advanceToNextRound, currentRound, resolveAnswer, styleKeyFor } from './session'
+import {
+  advanceToNextRound, currentRound, resolveAnswer, revealWithNoAnswer, styleKeyFor,
+} from './session'
 
 const MS_PER_SECOND = 1000
 
@@ -45,6 +47,9 @@ export function intentsForCommand(state: SessionState, type: string, payload: un
         teamId: requireString(fields['teamId'], `${type}.teamId`),
         correct: type === 'markCorrect',
       })
+
+    case 'noAnswer':
+      return revealWithNoAnswer(state)
 
     case 'next':
       return [{ type: 'setPhase', phase: 'board' }]
